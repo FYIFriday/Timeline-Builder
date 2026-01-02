@@ -350,7 +350,48 @@ function App() {
           ctx.font = `${cell.italic ? 'italic ' : ''}${cell.bold ? 'bold ' : ''}${cell.fontSize}px ${cell.fontFamily}`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillText(cell.text, x + cell.width / 2, y + cell.height / 2);
+
+          // Handle multi-line text with markdown bold syntax
+          const lines = cell.text.split('\n');
+          const lineHeight = cell.fontSize * 1.5;
+          const totalTextHeight = lines.length * lineHeight;
+          const startY = y + cell.height / 2 - totalTextHeight / 2 + lineHeight / 2;
+
+          lines.forEach((line, lineIndex) => {
+            // Parse **bold** syntax
+            const boldRegex = /\*\*(.*?)\*\*/g;
+            let lastIndex = 0;
+            let currentX = x + cell.width / 2;
+            const segments: Array<{ text: string; isBold: boolean }> = [];
+
+            let match;
+            while ((match = boldRegex.exec(line)) !== null) {
+              if (match.index > lastIndex) {
+                segments.push({ text: line.substring(lastIndex, match.index), isBold: false });
+              }
+              segments.push({ text: match[1], isBold: true });
+              lastIndex = match.index + match[0].length;
+            }
+            if (lastIndex < line.length) {
+              segments.push({ text: line.substring(lastIndex), isBold: false });
+            }
+
+            // Calculate total width for centering
+            const totalWidth = segments.reduce((sum, seg) => {
+              const font = `${cell.italic ? 'italic ' : ''}${seg.isBold || cell.bold ? 'bold ' : ''}${cell.fontSize}px ${cell.fontFamily}`;
+              ctx.font = font;
+              return sum + ctx.measureText(seg.text).width;
+            }, 0);
+
+            // Draw segments
+            currentX = x + cell.width / 2 - totalWidth / 2;
+            segments.forEach(seg => {
+              const font = `${cell.italic ? 'italic ' : ''}${seg.isBold || cell.bold ? 'bold ' : ''}${cell.fontSize}px ${cell.fontFamily}`;
+              ctx.font = font;
+              ctx.fillText(seg.text, currentX, startY + lineIndex * lineHeight);
+              currentX += ctx.measureText(seg.text).width;
+            });
+          });
         }
       });
 
@@ -599,7 +640,48 @@ function App() {
           ctx.font = `${cell.italic ? 'italic ' : ''}${cell.bold ? 'bold ' : ''}${cell.fontSize}px ${cell.fontFamily}`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillText(cell.text, x + cell.width / 2, y + cell.height / 2);
+
+          // Handle multi-line text with markdown bold syntax
+          const lines = cell.text.split('\n');
+          const lineHeight = cell.fontSize * 1.5;
+          const totalTextHeight = lines.length * lineHeight;
+          const startY = y + cell.height / 2 - totalTextHeight / 2 + lineHeight / 2;
+
+          lines.forEach((line, lineIndex) => {
+            // Parse **bold** syntax
+            const boldRegex = /\*\*(.*?)\*\*/g;
+            let lastIndex = 0;
+            let currentX = x + cell.width / 2;
+            const segments: Array<{ text: string; isBold: boolean }> = [];
+
+            let match;
+            while ((match = boldRegex.exec(line)) !== null) {
+              if (match.index > lastIndex) {
+                segments.push({ text: line.substring(lastIndex, match.index), isBold: false });
+              }
+              segments.push({ text: match[1], isBold: true });
+              lastIndex = match.index + match[0].length;
+            }
+            if (lastIndex < line.length) {
+              segments.push({ text: line.substring(lastIndex), isBold: false });
+            }
+
+            // Calculate total width for centering
+            const totalWidth = segments.reduce((sum, seg) => {
+              const font = `${cell.italic ? 'italic ' : ''}${seg.isBold || cell.bold ? 'bold ' : ''}${cell.fontSize}px ${cell.fontFamily}`;
+              ctx.font = font;
+              return sum + ctx.measureText(seg.text).width;
+            }, 0);
+
+            // Draw segments
+            currentX = x + cell.width / 2 - totalWidth / 2;
+            segments.forEach(seg => {
+              const font = `${cell.italic ? 'italic ' : ''}${seg.isBold || cell.bold ? 'bold ' : ''}${cell.fontSize}px ${cell.fontFamily}`;
+              ctx.font = font;
+              ctx.fillText(seg.text, currentX, startY + lineIndex * lineHeight);
+              currentX += ctx.measureText(seg.text).width;
+            });
+          });
         }
       });
 

@@ -5,6 +5,7 @@ export interface Cell {
   width: number;
   height: number;
   text: string;
+  htmlContent?: string; // HTML formatted content for rich text
   backgroundColor: string;
   textColor: string;
   borderColor: string;

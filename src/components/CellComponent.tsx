@@ -9,9 +9,35 @@ interface CellComponentProps {
 
 type ResizeDirection = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w' | null;
 
+// Parse text for **bold** markdown syntax
+function renderFormattedText(text: string) {
+  const parts: React.ReactNode[] = [];
+  const regex = /\*\*(.*?)\*\*/g;
+  let lastIndex = 0;
+  let match;
+
+  while ((match = regex.exec(text)) !== null) {
+    // Add text before the bold part
+    if (match.index > lastIndex) {
+      parts.push(text.substring(lastIndex, match.index));
+    }
+    // Add bold part
+    parts.push(<strong key={match.index}>{match[1]}</strong>);
+    lastIndex = match.index + match[0].length;
+  }
+
+  // Add remaining text
+  if (lastIndex < text.length) {
+    parts.push(text.substring(lastIndex));
+  }
+
+  return parts.length > 0 ? parts : text;
+}
+
 function CellComponent({ cell, isSelected }: CellComponentProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(cell.text);
+  const editableRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [resizeDirection, setResizeDirection] = useState<ResizeDirection>(null);
@@ -69,6 +95,11 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
   };
 
   const handleContextMenu = (e: React.MouseEvent) => {
+    // If editing, don't handle context menu
+    if (isEditing) {
+      return;
+    }
+
     // Select the cell when right-clicking, but don't stop propagation
     // so the canvas can show the context menu
     if (!selectedCellIds.includes(cell.id)) {
@@ -149,7 +180,7 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
     saveHistory();
   };
 
-  const handleTextKeyDown = (e: React.KeyboardEvent) => {
+  const handleTextKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
     const cmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
 
@@ -157,10 +188,37 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
       setIsEditing(false);
       setEditText(cell.text);
     }
-    // Toggle Bold
+    // Toggle Bold - wrap selected text with **
     else if (cmdOrCtrl && e.key === 'b') {
       e.preventDefault();
-      updateCell(cell.id, { bold: !cell.bold });
+      const textarea = e.currentTarget;
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const selectedText = editText.substring(start, end);
+
+      if (selectedText) {
+        // Check if selection is already bold (wrapped with **)
+        const beforeStart = start >= 2 ? editText.substring(start - 2, start) : '';
+        const afterEnd = end + 2 <= editText.length ? editText.substring(end, end + 2) : '';
+
+        if (beforeStart === '**' && afterEnd === '**') {
+          // Remove bold markers
+          const newText = editText.substring(0, start - 2) + selectedText + editText.substring(end + 2);
+          setEditText(newText);
+          setTimeout(() => {
+            textarea.selectionStart = start - 2;
+            textarea.selectionEnd = end - 2;
+          }, 0);
+        } else {
+          // Add bold markers
+          const newText = editText.substring(0, start) + '**' + selectedText + '**' + editText.substring(end);
+          setEditText(newText);
+          setTimeout(() => {
+            textarea.selectionStart = start + 2;
+            textarea.selectionEnd = end + 2;
+          }, 0);
+        }
+      }
     }
     // Toggle Italic
     else if (cmdOrCtrl && e.key === 'i') {
@@ -492,6 +550,7 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
           onChange={handleTextChange}
           onBlur={handleTextBlur}
           onKeyDown={handleTextKeyDown}
+          spellCheck={true}
           style={{
             width: '100%',
             height: '100%',
@@ -504,8 +563,14 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
           }}
         />
       ) : (
-        <div style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
-          {cell.text}
+        <div style={{
+          width: '100%',
+          height: '100%',
+          overflow: 'hidden',
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-word'
+        }}>
+          {renderFormattedText(cell.text)}
         </div>
       )}
 
