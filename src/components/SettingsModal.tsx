@@ -8,12 +8,41 @@ interface SettingsModalProps {
 }
 
 function SettingsModal({ onClose }: SettingsModalProps) {
-  const { colorPresets, defaultCellStyle, updateColorPreset, setDefaultCellStyle, setColorPresets } = useStore();
+  const { cells, colorPresets, defaultCellStyle, updateCell, updateColorPreset, setDefaultCellStyle, setColorPresets } = useStore();
   const [activeTab, setActiveTab] = useState<'default' | 'presets'>('default');
   const [editedDefault, setEditedDefault] = useState<DefaultCellStyle>({ ...defaultCellStyle });
   const [editedPresets, setEditedPresets] = useState<ColorPreset[]>([...colorPresets]);
 
   const handleSave = () => {
+    // Update cells that are using presets that changed
+    editedPresets.forEach((editedPreset, index) => {
+      const originalPreset = colorPresets[index];
+      if (originalPreset && originalPreset.name === editedPreset.name) {
+        // Check if preset changed
+        const hasChanged =
+          originalPreset.textColor !== editedPreset.textColor ||
+          originalPreset.bgColor !== editedPreset.bgColor ||
+          originalPreset.borderColor !== editedPreset.borderColor ||
+          originalPreset.borderThickness !== editedPreset.borderThickness ||
+          originalPreset.borderRadius !== editedPreset.borderRadius;
+
+        if (hasChanged) {
+          // Update all cells using this style
+          cells.forEach(cell => {
+            if (cell.styleName === editedPreset.name) {
+              updateCell(cell.id, {
+                textColor: editedPreset.textColor,
+                backgroundColor: editedPreset.bgColor,
+                borderColor: editedPreset.borderColor || editedPreset.textColor,
+                borderThickness: editedPreset.borderThickness ?? 1,
+                borderRadius: editedPreset.borderRadius ?? 8,
+              });
+            }
+          });
+        }
+      }
+    });
+
     setDefaultCellStyle(editedDefault);
     setColorPresets(editedPresets);
     onClose();

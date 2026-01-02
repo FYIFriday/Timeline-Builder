@@ -134,6 +134,7 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal }: ContextMenuProps) {
         borderThickness: preset.borderThickness ?? 1,
         borderColor: preset.borderColor || preset.textColor,
         borderRadius: preset.borderRadius ?? 8,
+        styleName: preset.name, // Track which style is applied
       });
     });
     saveHistory();
@@ -177,9 +178,9 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal }: ContextMenuProps) {
     input.onchange = (e) => {
       const color = (e.target as HTMLInputElement).value;
       if (type === 'background') {
-        selectedCellIds.forEach((id) => updateCell(id, { backgroundColor: color }));
+        selectedCellIds.forEach((id) => updateCell(id, { backgroundColor: color, styleName: undefined }));
       } else if (type === 'text') {
-        selectedCellIds.forEach((id) => updateCell(id, { textColor: color }));
+        selectedCellIds.forEach((id) => updateCell(id, { textColor: color, styleName: undefined }));
       } else if (type === 'connection') {
         const selectedConnections = connections.filter(
           (conn) =>
@@ -251,7 +252,7 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal }: ContextMenuProps) {
 
   const handleAddBorder = () => {
     selectedCellIds.forEach((id) => {
-      updateCell(id, { borderThickness: 1, borderColor: '#000000', borderRadius: 8 });
+      updateCell(id, { borderThickness: 1, borderColor: '#000000', borderRadius: 8, styleName: undefined });
     });
     saveHistory();
     onClose();
@@ -259,7 +260,7 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal }: ContextMenuProps) {
 
   const handleRemoveBorder = () => {
     selectedCellIds.forEach((id) => {
-      updateCell(id, { borderThickness: 0 });
+      updateCell(id, { borderThickness: 0, styleName: undefined });
     });
     saveHistory();
     onClose();
@@ -268,7 +269,7 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal }: ContextMenuProps) {
   const handleBorderThickness = () => {
     const thickness = prompt('Enter border thickness (px):', '1');
     if (thickness) {
-      selectedCellIds.forEach((id) => updateCell(id, { borderThickness: parseInt(thickness) }));
+      selectedCellIds.forEach((id) => updateCell(id, { borderThickness: parseInt(thickness), styleName: undefined }));
       saveHistory();
     }
     onClose();
@@ -280,14 +281,14 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal }: ContextMenuProps) {
     input.click();
     input.onchange = (e) => {
       const color = (e.target as HTMLInputElement).value;
-      selectedCellIds.forEach((id) => updateCell(id, { borderColor: color }));
+      selectedCellIds.forEach((id) => updateCell(id, { borderColor: color, styleName: undefined }));
       saveHistory();
     };
     onClose();
   };
 
   const handleBorderShape = (radius: number) => {
-    selectedCellIds.forEach((id) => updateCell(id, { borderRadius: radius }));
+    selectedCellIds.forEach((id) => updateCell(id, { borderRadius: radius, styleName: undefined }));
     saveHistory();
     onClose();
   };
