@@ -38,7 +38,7 @@ export interface Connection {
   fromPinIndex?: number;
   toPinIndex?: number;
   color: string;
-  style: 'Dotted' | 'Dashed' | 'Solid' | 'Bold';
+  style: 'Dotted' | 'Dashed' | 'Solid' | 'Bold' | 'Arrow';
 }
 
 export interface ColorPreset {

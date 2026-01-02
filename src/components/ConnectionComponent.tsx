@@ -124,11 +124,89 @@ function ConnectionComponent({ connection, onContextMenu }: ConnectionComponentP
 
   const strokeWidth = connection.style === 'Bold' ? 3 : connection.style === 'Dashed' ? 2 : 1;
 
+  // For Arrow style, calculate intersection with destination cell border
+  let x2End = x2;
+  let y2End = y2;
+
+  if (connection.style === 'Arrow') {
+    // Calculate where the line intersects with the destination cell's rectangle
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+
+    // Cell bounds
+    const cellLeft = toCell.x;
+    const cellRight = toCell.x + toCell.width;
+    const cellTop = toCell.y;
+    const cellBottom = toCell.y + toCell.height;
+
+    // Find intersection with each edge
+    const intersections: Array<{ x: number; y: number; dist: number }> = [];
+
+    // Top edge
+    if (dy !== 0) {
+      const t = (cellTop - y1) / dy;
+      if (t > 0 && t <= 1) {
+        const ix = x1 + t * dx;
+        if (ix >= cellLeft && ix <= cellRight) {
+          const dist = Math.sqrt((ix - x1) ** 2 + (cellTop - y1) ** 2);
+          intersections.push({ x: ix, y: cellTop, dist });
+        }
+      }
+    }
+
+    // Bottom edge
+    if (dy !== 0) {
+      const t = (cellBottom - y1) / dy;
+      if (t > 0 && t <= 1) {
+        const ix = x1 + t * dx;
+        if (ix >= cellLeft && ix <= cellRight) {
+          const dist = Math.sqrt((ix - x1) ** 2 + (cellBottom - y1) ** 2);
+          intersections.push({ x: ix, y: cellBottom, dist });
+        }
+      }
+    }
+
+    // Left edge
+    if (dx !== 0) {
+      const t = (cellLeft - x1) / dx;
+      if (t > 0 && t <= 1) {
+        const iy = y1 + t * dy;
+        if (iy >= cellTop && iy <= cellBottom) {
+          const dist = Math.sqrt((cellLeft - x1) ** 2 + (iy - y1) ** 2);
+          intersections.push({ x: cellLeft, y: iy, dist });
+        }
+      }
+    }
+
+    // Right edge
+    if (dx !== 0) {
+      const t = (cellRight - x1) / dx;
+      if (t > 0 && t <= 1) {
+        const iy = y1 + t * dy;
+        if (iy >= cellTop && iy <= cellBottom) {
+          const dist = Math.sqrt((cellRight - x1) ** 2 + (iy - y1) ** 2);
+          intersections.push({ x: cellRight, y: iy, dist });
+        }
+      }
+    }
+
+    // Use the closest intersection
+    if (intersections.length > 0) {
+      intersections.sort((a, b) => a.dist - b.dist);
+      x2End = intersections[0].x;
+      y2End = intersections[0].y;
+    }
+  }
+
+  // Calculate arrow angle for Arrow style
+  const angle = Math.atan2(y2End - y1, x2End - x1);
+  const arrowSize = 10;
+
   // Calculate bounding box for the SVG
-  const minX = Math.min(x1, x2) - 10;
-  const minY = Math.min(y1, y2) - 10;
-  const maxX = Math.max(x1, x2) + 10;
-  const maxY = Math.max(y1, y2) + 10;
+  const minX = Math.min(x1, x2End) - 10;
+  const minY = Math.min(y1, y2End) - 10;
+  const maxX = Math.max(x1, x2End) + 10;
+  const maxY = Math.max(y1, y2End) + 10;
   const width = maxX - minX;
   const height = maxY - minY;
 
@@ -159,8 +237,8 @@ function ConnectionComponent({ connection, onContextMenu }: ConnectionComponentP
       <line
         x1={x1 - minX}
         y1={y1 - minY}
-        x2={x2 - minX}
-        y2={y2 - minY}
+        x2={x2End - minX}
+        y2={y2End - minY}
         stroke="transparent"
         strokeWidth={12}
       />
@@ -168,12 +246,23 @@ function ConnectionComponent({ connection, onContextMenu }: ConnectionComponentP
       <line
         x1={x1 - minX}
         y1={y1 - minY}
-        x2={x2 - minX}
-        y2={y2 - minY}
+        x2={x2End - minX}
+        y2={y2End - minY}
         stroke={connection.color}
         strokeWidth={strokeWidth}
         strokeDasharray={strokeDasharray}
       />
+      {/* Arrow head */}
+      {connection.style === 'Arrow' && (
+        <polygon
+          points={`
+            ${x2End - minX},${y2End - minY}
+            ${x2End - minX - arrowSize * Math.cos(angle - Math.PI / 6)},${y2End - minY - arrowSize * Math.sin(angle - Math.PI / 6)}
+            ${x2End - minX - arrowSize * Math.cos(angle + Math.PI / 6)},${y2End - minY - arrowSize * Math.sin(angle + Math.PI / 6)}
+          `}
+          fill={connection.color}
+        />
+      )}
     </svg>
   );
 }

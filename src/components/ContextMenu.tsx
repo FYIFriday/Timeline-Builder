@@ -102,6 +102,25 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal }: ContextMenuProps) {
     onClose();
   };
 
+  const handleAddArrowConnection = () => {
+    if (selectedCellIds.length < 2) return;
+
+    // First cell is origin, all others are destinations
+    const originId = selectedCellIds[0];
+    for (let i = 1; i < selectedCellIds.length; i++) {
+      const connection: Connection = {
+        id: `conn-${Date.now()}-arrow-${i}`,
+        fromCellId: originId,
+        toCellId: selectedCellIds[i],
+        color: '#000000',
+        style: 'Arrow',
+      };
+      addConnection(connection);
+    }
+    saveHistory();
+    onClose();
+  };
+
   const handleRemoveConnections = () => {
     deleteConnectionsForCells(selectedCellIds);
     onClose();
@@ -124,11 +143,28 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal }: ContextMenuProps) {
   const handleConnectionStyle = (style: Connection['style']) => {
     const selectedConnections = connections.filter(
       (conn) =>
-        selectedCellIds.includes(conn.fromCellId) ||
+        selectedCellIds.includes(conn.fromCellId) &&
         selectedCellIds.includes(conn.toCellId)
     );
     selectedConnections.forEach((conn) => {
-      updateConnection(conn.id, { style });
+      // For arrow style, ensure arrow points away from first selected cell
+      if (style === 'Arrow' && selectedCellIds.length > 0) {
+        const firstSelectedId = selectedCellIds[0];
+        // If the connection is backwards (toCellId is the first selected), swap it
+        if (conn.toCellId === firstSelectedId && selectedCellIds.includes(conn.fromCellId)) {
+          updateConnection(conn.id, {
+            fromCellId: conn.toCellId,
+            toCellId: conn.fromCellId,
+            fromPinIndex: conn.toPinIndex,
+            toPinIndex: conn.fromPinIndex,
+            style
+          });
+        } else {
+          updateConnection(conn.id, { style });
+        }
+      } else {
+        updateConnection(conn.id, { style });
+      }
     });
     saveHistory();
     onClose();
@@ -147,7 +183,7 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal }: ContextMenuProps) {
       } else if (type === 'connection') {
         const selectedConnections = connections.filter(
           (conn) =>
-            selectedCellIds.includes(conn.fromCellId) ||
+            selectedCellIds.includes(conn.fromCellId) &&
             selectedCellIds.includes(conn.toCellId)
         );
         selectedConnections.forEach((conn) => updateConnection(conn.id, { color }));
@@ -351,6 +387,9 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal }: ContextMenuProps) {
       <MenuItem onClick={handleAddConnection} disabled={selectedCellIds.length < 2}>
         Add connection
       </MenuItem>
+      <MenuItem onClick={handleAddArrowConnection} disabled={selectedCellIds.length < 2}>
+        Add arrow connection
+      </MenuItem>
       <MenuItem onClick={handleRemoveConnections} disabled={!hasConnectionsBetweenSelected}>
         Remove connections
       </MenuItem>
@@ -376,6 +415,7 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal }: ContextMenuProps) {
         <MenuItem onClick={() => handleConnectionStyle('Dashed')} disabled={!hasConnectionsBetweenSelected}>Dashed</MenuItem>
         <MenuItem onClick={() => handleConnectionStyle('Solid')} disabled={!hasConnectionsBetweenSelected}>Solid</MenuItem>
         <MenuItem onClick={() => handleConnectionStyle('Bold')} disabled={!hasConnectionsBetweenSelected}>Bold</MenuItem>
+        <MenuItem onClick={() => handleConnectionStyle('Arrow')} disabled={!hasConnectionsBetweenSelected}>Arrow</MenuItem>
       </MenuSubmenu>
       <MenuSubmenu label="Color">
         <MenuItem onClick={() => handleColorPicker('background')}>Cell background</MenuItem>

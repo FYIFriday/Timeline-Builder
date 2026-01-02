@@ -149,8 +149,75 @@ function App() {
 
         const x1 = fromCell.x - minX + padding + fromCell.width / 2;
         const y1 = fromCell.y - minY + padding + fromCell.height / 2;
-        const x2 = toCell.x - minX + padding + toCell.width / 2;
-        const y2 = toCell.y - minY + padding + toCell.height / 2;
+        let x2 = toCell.x - minX + padding + toCell.width / 2;
+        let y2 = toCell.y - minY + padding + toCell.height / 2;
+
+        // For Arrow style, calculate intersection with destination cell border
+        if (conn.style === 'Arrow') {
+          const dx = x2 - x1;
+          const dy = y2 - y1;
+
+          const cellLeft = toCell.x - minX + padding;
+          const cellRight = toCell.x - minX + padding + toCell.width;
+          const cellTop = toCell.y - minY + padding;
+          const cellBottom = toCell.y - minY + padding + toCell.height;
+
+          const intersections: Array<{ x: number; y: number; dist: number }> = [];
+
+          // Top edge
+          if (dy !== 0) {
+            const t = (cellTop - y1) / dy;
+            if (t > 0 && t <= 1) {
+              const ix = x1 + t * dx;
+              if (ix >= cellLeft && ix <= cellRight) {
+                const dist = Math.sqrt((ix - x1) ** 2 + (cellTop - y1) ** 2);
+                intersections.push({ x: ix, y: cellTop, dist });
+              }
+            }
+          }
+
+          // Bottom edge
+          if (dy !== 0) {
+            const t = (cellBottom - y1) / dy;
+            if (t > 0 && t <= 1) {
+              const ix = x1 + t * dx;
+              if (ix >= cellLeft && ix <= cellRight) {
+                const dist = Math.sqrt((ix - x1) ** 2 + (cellBottom - y1) ** 2);
+                intersections.push({ x: ix, y: cellBottom, dist });
+              }
+            }
+          }
+
+          // Left edge
+          if (dx !== 0) {
+            const t = (cellLeft - x1) / dx;
+            if (t > 0 && t <= 1) {
+              const iy = y1 + t * dy;
+              if (iy >= cellTop && iy <= cellBottom) {
+                const dist = Math.sqrt((cellLeft - x1) ** 2 + (iy - y1) ** 2);
+                intersections.push({ x: cellLeft, y: iy, dist });
+              }
+            }
+          }
+
+          // Right edge
+          if (dx !== 0) {
+            const t = (cellRight - x1) / dx;
+            if (t > 0 && t <= 1) {
+              const iy = y1 + t * dy;
+              if (iy >= cellTop && iy <= cellBottom) {
+                const dist = Math.sqrt((cellRight - x1) ** 2 + (iy - y1) ** 2);
+                intersections.push({ x: cellRight, y: iy, dist });
+              }
+            }
+          }
+
+          if (intersections.length > 0) {
+            intersections.sort((a, b) => a.dist - b.dist);
+            x2 = intersections[0].x;
+            y2 = intersections[0].y;
+          }
+        }
 
         ctx.strokeStyle = conn.color;
         ctx.lineWidth = conn.style === 'Bold' ? 3 : 1;
@@ -167,6 +234,25 @@ function App() {
         ctx.moveTo(x1, y1);
         ctx.lineTo(x2, y2);
         ctx.stroke();
+
+        // Draw arrow head for Arrow style
+        if (conn.style === 'Arrow') {
+          const angle = Math.atan2(y2 - y1, x2 - x1);
+          const arrowSize = 10;
+          ctx.fillStyle = conn.color;
+          ctx.beginPath();
+          ctx.moveTo(x2, y2);
+          ctx.lineTo(
+            x2 - arrowSize * Math.cos(angle - Math.PI / 6),
+            y2 - arrowSize * Math.sin(angle - Math.PI / 6)
+          );
+          ctx.lineTo(
+            x2 - arrowSize * Math.cos(angle + Math.PI / 6),
+            y2 - arrowSize * Math.sin(angle + Math.PI / 6)
+          );
+          ctx.closePath();
+          ctx.fill();
+        }
       });
 
       cells.forEach((cell) => {
@@ -317,8 +403,75 @@ function App() {
 
         const x1 = fromCell.x - minX + padding + fromCell.width / 2;
         const y1 = fromCell.y - minY + padding + fromCell.height / 2;
-        const x2 = toCell.x - minX + padding + toCell.width / 2;
-        const y2 = toCell.y - minY + padding + toCell.height / 2;
+        let x2 = toCell.x - minX + padding + toCell.width / 2;
+        let y2 = toCell.y - minY + padding + toCell.height / 2;
+
+        // For Arrow style, calculate intersection with destination cell border
+        if (conn.style === 'Arrow') {
+          const dx = x2 - x1;
+          const dy = y2 - y1;
+
+          const cellLeft = toCell.x - minX + padding;
+          const cellRight = toCell.x - minX + padding + toCell.width;
+          const cellTop = toCell.y - minY + padding;
+          const cellBottom = toCell.y - minY + padding + toCell.height;
+
+          const intersections: Array<{ x: number; y: number; dist: number }> = [];
+
+          // Top edge
+          if (dy !== 0) {
+            const t = (cellTop - y1) / dy;
+            if (t > 0 && t <= 1) {
+              const ix = x1 + t * dx;
+              if (ix >= cellLeft && ix <= cellRight) {
+                const dist = Math.sqrt((ix - x1) ** 2 + (cellTop - y1) ** 2);
+                intersections.push({ x: ix, y: cellTop, dist });
+              }
+            }
+          }
+
+          // Bottom edge
+          if (dy !== 0) {
+            const t = (cellBottom - y1) / dy;
+            if (t > 0 && t <= 1) {
+              const ix = x1 + t * dx;
+              if (ix >= cellLeft && ix <= cellRight) {
+                const dist = Math.sqrt((ix - x1) ** 2 + (cellBottom - y1) ** 2);
+                intersections.push({ x: ix, y: cellBottom, dist });
+              }
+            }
+          }
+
+          // Left edge
+          if (dx !== 0) {
+            const t = (cellLeft - x1) / dx;
+            if (t > 0 && t <= 1) {
+              const iy = y1 + t * dy;
+              if (iy >= cellTop && iy <= cellBottom) {
+                const dist = Math.sqrt((cellLeft - x1) ** 2 + (iy - y1) ** 2);
+                intersections.push({ x: cellLeft, y: iy, dist });
+              }
+            }
+          }
+
+          // Right edge
+          if (dx !== 0) {
+            const t = (cellRight - x1) / dx;
+            if (t > 0 && t <= 1) {
+              const iy = y1 + t * dy;
+              if (iy >= cellTop && iy <= cellBottom) {
+                const dist = Math.sqrt((cellRight - x1) ** 2 + (iy - y1) ** 2);
+                intersections.push({ x: cellRight, y: iy, dist });
+              }
+            }
+          }
+
+          if (intersections.length > 0) {
+            intersections.sort((a, b) => a.dist - b.dist);
+            x2 = intersections[0].x;
+            y2 = intersections[0].y;
+          }
+        }
 
         ctx.strokeStyle = conn.color;
         ctx.lineWidth = conn.style === 'Bold' ? 3 : 1;
@@ -335,6 +488,25 @@ function App() {
         ctx.moveTo(x1, y1);
         ctx.lineTo(x2, y2);
         ctx.stroke();
+
+        // Draw arrow head for Arrow style
+        if (conn.style === 'Arrow') {
+          const angle = Math.atan2(y2 - y1, x2 - x1);
+          const arrowSize = 10;
+          ctx.fillStyle = conn.color;
+          ctx.beginPath();
+          ctx.moveTo(x2, y2);
+          ctx.lineTo(
+            x2 - arrowSize * Math.cos(angle - Math.PI / 6),
+            y2 - arrowSize * Math.sin(angle - Math.PI / 6)
+          );
+          ctx.lineTo(
+            x2 - arrowSize * Math.cos(angle + Math.PI / 6),
+            y2 - arrowSize * Math.sin(angle + Math.PI / 6)
+          );
+          ctx.closePath();
+          ctx.fill();
+        }
       });
 
       // Draw cells (same as PNG export - includes timeline rendering)
