@@ -27,13 +27,24 @@
     ],
     "mac": {
       "category": "public.app-category.productivity",
-      "target": ["dmg", "zip"]
+      "target": [
+        "dmg",
+        "zip"
+      ]
     },
     "win": {
-      "target": ["nsis", "zip"]
+      "target": [
+        "nsis",
+        "zip"
+      ]
     }
   },
-  "keywords": ["electron", "timeline", "flowchart", "canvas"],
+  "keywords": [
+    "electron",
+    "timeline",
+    "flowchart",
+    "canvas"
+  ],
   "author": "",
   "license": "MIT",
   "devDependencies": {
@@ -51,6 +62,7 @@
     "wait-on": "^7.2.0"
   },
   "dependencies": {
+    "lucide-react": "^0.562.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "zustand": "^4.4.7"

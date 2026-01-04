@@ -3,12 +3,108 @@ import Canvas from './components/Canvas';
 import { useStore } from './store';
 import { Cell, Connection } from './types';
 
+// Helper function to parse HTML and extract text segments with formatting
+interface TextSegment {
+  text: string;
+  isBold: boolean;
+  isItalic: boolean;
+  isUnderline: boolean;
+  isStrikethrough: boolean;
+  fontSize?: number;
+}
+
+function parseHtmlToSegments(html: string, baseFontSize: number): TextSegment[][] {
+  const tempDiv = document.createElement('div');
+  tempDiv.innerHTML = html;
+
+  const lines: TextSegment[][] = [];
+  let currentLine: TextSegment[] = [];
+
+  const traverse = (node: Node, inheritedBold = false, inheritedItalic = false, inheritedUnderline = false, inheritedStrikethrough = false, inheritedFontSize?: number) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const text = node.textContent || '';
+      if (text) {
+        currentLine.push({
+          text,
+          isBold: inheritedBold,
+          isItalic: inheritedItalic,
+          isUnderline: inheritedUnderline,
+          isStrikethrough: inheritedStrikethrough,
+          fontSize: inheritedFontSize,
+        });
+      }
+    } else if (node.nodeType === Node.ELEMENT_NODE) {
+      const element = node as HTMLElement;
+      const tagName = element.tagName.toLowerCase();
+
+      // Handle line breaks
+      if (tagName === 'br') {
+        lines.push([...currentLine]);
+        currentLine = [];
+        return;
+      }
+
+      // Handle list items
+      if (tagName === 'li') {
+        // Add bullet prefix
+        currentLine.push({
+          text: '• ',
+          isBold: inheritedBold,
+          isItalic: inheritedItalic,
+          isUnderline: inheritedUnderline,
+          isStrikethrough: inheritedStrikethrough,
+          fontSize: inheritedFontSize,
+        });
+      }
+
+      // Update formatting flags based on tag
+      const isBold = inheritedBold || tagName === 'strong' || tagName === 'b';
+      const isItalic = inheritedItalic || tagName === 'em' || tagName === 'i';
+      const isUnderline = inheritedUnderline || tagName === 'u';
+      const isStrikethrough = inheritedStrikethrough || tagName === 's' || tagName === 'strike' || tagName === 'del';
+
+      // Check for font size in style
+      let fontSize = inheritedFontSize;
+      if (element.style.fontSize) {
+        const match = element.style.fontSize.match(/(\d+)px/);
+        if (match) {
+          fontSize = parseInt(match[1]);
+        }
+      }
+
+      // Traverse children
+      node.childNodes.forEach(child => traverse(child, isBold, isItalic, isUnderline, isStrikethrough, fontSize));
+
+      // Handle block elements that create new lines
+      if (['div', 'p', 'li'].includes(tagName) && currentLine.length > 0) {
+        lines.push([...currentLine]);
+        currentLine = [];
+      }
+    }
+  };
+
+  traverse(tempDiv);
+
+  // Add any remaining content
+  if (currentLine.length > 0) {
+    lines.push(currentLine);
+  }
+
+  // If no lines, return a single empty line
+  if (lines.length === 0) {
+    lines.push([{ text: '', isBold: false, isItalic: false, isUnderline: false, isStrikethrough: false }]);
+  }
+
+  return lines;
+}
+
 declare global {
   interface Window {
     electron?: {
       saveFile: (data: string) => Promise<string | null>;
       saveFileAs: (data: string) => Promise<string | null>;
       saveBackup: (data: string) => Promise<string | null>;
+      loadBackup: () => Promise<string | null>;
       exportPng: (dataUrl: string) => Promise<string | null>;
       exportPdf: (dataUrl: string) => Promise<string | null>;
       exportJson: (data: string) => Promise<string | null>;
@@ -28,6 +124,35 @@ declare global {
 
 function App() {
   const canvasContainerRef = useRef<HTMLDivElement>(null);
+
+  // Load backup on startup if available
+  useEffect(() => {
+    const loadBackupOnStartup = async () => {
+      if (window.electron) {
+        try {
+          const backupData = await window.electron.loadBackup();
+          if (backupData) {
+            const parsed = JSON.parse(backupData);
+            const store = useStore.getState();
+            store.loadState({
+              cells: parsed.cells || [],
+              connections: parsed.connections || [],
+              canvasBackgroundColor: parsed.canvasBackgroundColor || '#ffffff',
+              colorPresets: parsed.colorPresets,
+              defaultCellStyle: parsed.defaultCellStyle,
+            });
+            // Set window title to indicate recovered work
+            await window.electron.setWindowTitle('*Recovered* - Timeline Free Plotter');
+            console.log('Backup loaded successfully');
+          }
+        } catch (error) {
+          console.error('Failed to load backup:', error);
+        }
+      }
+    };
+
+    loadBackupOnStartup();
+  }, []); // Run only once on mount
 
   useEffect(() => {
     const handleSave = async () => {
@@ -351,44 +476,50 @@ function App() {
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
 
-          // Handle multi-line text with markdown bold syntax
-          const lines = cell.text.split('\n');
+          // Parse HTML content or fall back to plain text
+          const htmlContent = cell.htmlContent || cell.text.replace(/\n/g, '<br>');
+          const lines = parseHtmlToSegments(htmlContent, cell.fontSize);
           const lineHeight = cell.fontSize * 1.5;
           const totalTextHeight = lines.length * lineHeight;
           const startY = y + cell.height / 2 - totalTextHeight / 2 + lineHeight / 2;
 
-          lines.forEach((line, lineIndex) => {
-            // Parse **bold** syntax
-            const boldRegex = /\*\*(.*?)\*\*/g;
-            let lastIndex = 0;
-            let currentX = x + cell.width / 2;
-            const segments: Array<{ text: string; isBold: boolean }> = [];
-
-            let match;
-            while ((match = boldRegex.exec(line)) !== null) {
-              if (match.index > lastIndex) {
-                segments.push({ text: line.substring(lastIndex, match.index), isBold: false });
-              }
-              segments.push({ text: match[1], isBold: true });
-              lastIndex = match.index + match[0].length;
-            }
-            if (lastIndex < line.length) {
-              segments.push({ text: line.substring(lastIndex), isBold: false });
-            }
-
+          lines.forEach((segments, lineIndex) => {
             // Calculate total width for centering
             const totalWidth = segments.reduce((sum, seg) => {
-              const font = `${cell.italic ? 'italic ' : ''}${seg.isBold || cell.bold ? 'bold ' : ''}${cell.fontSize}px ${cell.fontFamily}`;
+              const segFontSize = seg.fontSize || cell.fontSize;
+              const font = `${cell.italic || seg.isItalic ? 'italic ' : ''}${seg.isBold || cell.bold ? 'bold ' : ''}${segFontSize}px ${cell.fontFamily}`;
               ctx.font = font;
               return sum + ctx.measureText(seg.text).width;
             }, 0);
 
             // Draw segments
-            currentX = x + cell.width / 2 - totalWidth / 2;
+            let currentX = x + cell.width / 2 - totalWidth / 2;
             segments.forEach(seg => {
-              const font = `${cell.italic ? 'italic ' : ''}${seg.isBold || cell.bold ? 'bold ' : ''}${cell.fontSize}px ${cell.fontFamily}`;
+              const segFontSize = seg.fontSize || cell.fontSize;
+              const font = `${cell.italic || seg.isItalic ? 'italic ' : ''}${seg.isBold || cell.bold ? 'bold ' : ''}${segFontSize}px ${cell.fontFamily}`;
               ctx.font = font;
-              ctx.fillText(seg.text, currentX, startY + lineIndex * lineHeight);
+
+              const textY = startY + lineIndex * lineHeight;
+              ctx.fillText(seg.text, currentX, textY);
+
+              // Draw underline
+              if (cell.underline || seg.isUnderline) {
+                const textWidth = ctx.measureText(seg.text).width;
+                ctx.beginPath();
+                ctx.moveTo(currentX, textY + segFontSize * 0.1);
+                ctx.lineTo(currentX + textWidth, textY + segFontSize * 0.1);
+                ctx.stroke();
+              }
+
+              // Draw strikethrough
+              if (cell.strikethrough || seg.isStrikethrough) {
+                const textWidth = ctx.measureText(seg.text).width;
+                ctx.beginPath();
+                ctx.moveTo(currentX, textY - segFontSize * 0.2);
+                ctx.lineTo(currentX + textWidth, textY - segFontSize * 0.2);
+                ctx.stroke();
+              }
+
               currentX += ctx.measureText(seg.text).width;
             });
           });
@@ -641,44 +772,50 @@ function App() {
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
 
-          // Handle multi-line text with markdown bold syntax
-          const lines = cell.text.split('\n');
+          // Parse HTML content or fall back to plain text
+          const htmlContent = cell.htmlContent || cell.text.replace(/\n/g, '<br>');
+          const lines = parseHtmlToSegments(htmlContent, cell.fontSize);
           const lineHeight = cell.fontSize * 1.5;
           const totalTextHeight = lines.length * lineHeight;
           const startY = y + cell.height / 2 - totalTextHeight / 2 + lineHeight / 2;
 
-          lines.forEach((line, lineIndex) => {
-            // Parse **bold** syntax
-            const boldRegex = /\*\*(.*?)\*\*/g;
-            let lastIndex = 0;
-            let currentX = x + cell.width / 2;
-            const segments: Array<{ text: string; isBold: boolean }> = [];
-
-            let match;
-            while ((match = boldRegex.exec(line)) !== null) {
-              if (match.index > lastIndex) {
-                segments.push({ text: line.substring(lastIndex, match.index), isBold: false });
-              }
-              segments.push({ text: match[1], isBold: true });
-              lastIndex = match.index + match[0].length;
-            }
-            if (lastIndex < line.length) {
-              segments.push({ text: line.substring(lastIndex), isBold: false });
-            }
-
+          lines.forEach((segments, lineIndex) => {
             // Calculate total width for centering
             const totalWidth = segments.reduce((sum, seg) => {
-              const font = `${cell.italic ? 'italic ' : ''}${seg.isBold || cell.bold ? 'bold ' : ''}${cell.fontSize}px ${cell.fontFamily}`;
+              const segFontSize = seg.fontSize || cell.fontSize;
+              const font = `${cell.italic || seg.isItalic ? 'italic ' : ''}${seg.isBold || cell.bold ? 'bold ' : ''}${segFontSize}px ${cell.fontFamily}`;
               ctx.font = font;
               return sum + ctx.measureText(seg.text).width;
             }, 0);
 
             // Draw segments
-            currentX = x + cell.width / 2 - totalWidth / 2;
+            let currentX = x + cell.width / 2 - totalWidth / 2;
             segments.forEach(seg => {
-              const font = `${cell.italic ? 'italic ' : ''}${seg.isBold || cell.bold ? 'bold ' : ''}${cell.fontSize}px ${cell.fontFamily}`;
+              const segFontSize = seg.fontSize || cell.fontSize;
+              const font = `${cell.italic || seg.isItalic ? 'italic ' : ''}${seg.isBold || cell.bold ? 'bold ' : ''}${segFontSize}px ${cell.fontFamily}`;
               ctx.font = font;
-              ctx.fillText(seg.text, currentX, startY + lineIndex * lineHeight);
+
+              const textY = startY + lineIndex * lineHeight;
+              ctx.fillText(seg.text, currentX, textY);
+
+              // Draw underline
+              if (cell.underline || seg.isUnderline) {
+                const textWidth = ctx.measureText(seg.text).width;
+                ctx.beginPath();
+                ctx.moveTo(currentX, textY + segFontSize * 0.1);
+                ctx.lineTo(currentX + textWidth, textY + segFontSize * 0.1);
+                ctx.stroke();
+              }
+
+              // Draw strikethrough
+              if (cell.strikethrough || seg.isStrikethrough) {
+                const textWidth = ctx.measureText(seg.text).width;
+                ctx.beginPath();
+                ctx.moveTo(currentX, textY - segFontSize * 0.2);
+                ctx.lineTo(currentX + textWidth, textY - segFontSize * 0.2);
+                ctx.stroke();
+              }
+
               currentX += ctx.measureText(seg.text).width;
             });
           });

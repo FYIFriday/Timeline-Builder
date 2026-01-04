@@ -59,29 +59,41 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal }: ContextMenuProps) {
       const menuRect = menuRef.current.getBoundingClientRect();
       const viewportWidth = window.innerWidth;
       const viewportHeight = window.innerHeight;
+      const margin = 10; // Margin from edges
 
       let newX = x;
       let newY = y;
 
       // Check if menu goes off right edge
-      if (x + menuRect.width > viewportWidth) {
-        newX = viewportWidth - menuRect.width - 10;
+      if (x + menuRect.width > viewportWidth - margin) {
+        newX = Math.max(margin, viewportWidth - menuRect.width - margin);
+      }
+
+      // Check if menu goes off left edge
+      if (newX < margin) {
+        newX = margin;
       }
 
       // Check if menu goes off bottom edge
-      if (y + menuRect.height > viewportHeight) {
-        newY = y - menuRect.height; // Position above cursor
-        // If that would go off top, just position at bottom with some margin
-        if (newY < 0) {
-          newY = viewportHeight - menuRect.height - 10;
+      if (y + menuRect.height > viewportHeight - margin) {
+        // Try positioning above cursor first
+        newY = y - menuRect.height;
+        // If that would go off top, clamp to viewport
+        if (newY < margin) {
+          newY = Math.max(margin, viewportHeight - menuRect.height - margin);
         }
       }
 
-      if (newX !== x || newY !== y) {
+      // Check if menu goes off top edge
+      if (newY < margin) {
+        newY = margin;
+      }
+
+      if (newX !== position.x || newY !== position.y) {
         setPosition({ x: newX, y: newY });
       }
     }
-  }, [x, y]);
+  }, [x, y, position.x, position.y]);
 
   const handleAddConnection = () => {
     if (selectedCellIds.length < 2) return;
@@ -266,12 +278,9 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal }: ContextMenuProps) {
     onClose();
   };
 
-  const handleBorderThickness = () => {
-    const thickness = prompt('Enter border thickness (px):', '1');
-    if (thickness) {
-      selectedCellIds.forEach((id) => updateCell(id, { borderThickness: parseInt(thickness), styleName: undefined }));
-      saveHistory();
-    }
+  const handleBorderThickness = (thickness: number) => {
+    selectedCellIds.forEach((id) => updateCell(id, { borderThickness: thickness, styleName: undefined }));
+    saveHistory();
     onClose();
   };
 
@@ -435,7 +444,19 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal }: ContextMenuProps) {
       <MenuSubmenu label="Border">
         <MenuItem onClick={handleAddBorder}>Add Border</MenuItem>
         <MenuItem onClick={handleRemoveBorder}>Remove Border</MenuItem>
-        <MenuItem onClick={handleBorderThickness}>Thickness</MenuItem>
+        <MenuSubmenu label="Thickness">
+          <MenuItem onClick={() => handleBorderThickness(0)}>No Border</MenuItem>
+          <MenuItem onClick={() => handleBorderThickness(1)}>1px</MenuItem>
+          <MenuItem onClick={() => handleBorderThickness(2)}>2px</MenuItem>
+          <MenuItem onClick={() => handleBorderThickness(3)}>3px</MenuItem>
+          <MenuItem onClick={() => handleBorderThickness(4)}>4px</MenuItem>
+          <MenuItem onClick={() => handleBorderThickness(5)}>5px</MenuItem>
+          <MenuItem onClick={() => handleBorderThickness(6)}>6px</MenuItem>
+          <MenuItem onClick={() => handleBorderThickness(8)}>8px</MenuItem>
+          <MenuItem onClick={() => handleBorderThickness(10)}>10px</MenuItem>
+          <MenuItem onClick={() => handleBorderThickness(12)}>12px</MenuItem>
+          <MenuItem onClick={() => handleBorderThickness(20)}>20px</MenuItem>
+        </MenuSubmenu>
         <MenuItem onClick={handleBorderColor}>Color</MenuItem>
         <MenuItem onClick={() => handleBorderShape(0)}>Sharp rectangle</MenuItem>
         <MenuItem onClick={() => handleBorderShape(8)}>Rounded rectangle</MenuItem>
@@ -505,6 +526,34 @@ function MenuDivider() {
 
 function MenuSubmenu({ label, children, disabled = false }: { label: string; children: React.ReactNode; disabled?: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
+  const submenuRef = useRef<HTMLDivElement>(null);
+  const [submenuPosition, setSubmenuPosition] = useState<{ left?: string; right?: string; top?: number }>({ left: '100%', top: 0 });
+
+  useEffect(() => {
+    if (isOpen && submenuRef.current) {
+      const submenuRect = submenuRef.current.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      const margin = 10;
+
+      let position: { left?: string; right?: string; top?: number } = { left: '100%', top: 0 };
+
+      // Check if submenu goes off right edge
+      if (submenuRect.right > viewportWidth - margin) {
+        // Position to the left of parent instead
+        position = { right: '100%', top: 0 };
+      }
+
+      // Check if submenu goes off bottom edge
+      if (submenuRect.bottom > viewportHeight - margin) {
+        // Adjust vertical position
+        const newTop = Math.max(0, viewportHeight - margin - submenuRect.height - submenuRect.top + submenuRect.top);
+        position.top = -(submenuRect.height - 40); // Approximate item height
+      }
+
+      setSubmenuPosition(position);
+    }
+  }, [isOpen]);
 
   return (
     <div
@@ -517,15 +566,16 @@ function MenuSubmenu({ label, children, disabled = false }: { label: string; chi
       </MenuItem>
       {isOpen && (
         <div
+          ref={submenuRef}
           style={{
             position: 'absolute',
-            left: '100%',
-            top: 0,
+            ...submenuPosition,
             backgroundColor: 'white',
             border: '1px solid #ccc',
             borderRadius: 4,
             boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
             minWidth: 150,
+            zIndex: 10001,
           }}
         >
           {children}

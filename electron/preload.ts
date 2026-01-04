@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld('electron', {
   saveFile: (data: string) => ipcRenderer.invoke('save-file', data),
   saveFileAs: (data: string) => ipcRenderer.invoke('save-file-as', data),
   saveBackup: (data: string) => ipcRenderer.invoke('save-backup', data),
+  loadBackup: () => ipcRenderer.invoke('load-backup'),
   exportPng: (dataUrl: string) => ipcRenderer.invoke('export-png', dataUrl),
   exportPdf: (dataUrl: string) => ipcRenderer.invoke('export-pdf', dataUrl),
   exportJson: (data: string) => ipcRenderer.invoke('export-json', data),

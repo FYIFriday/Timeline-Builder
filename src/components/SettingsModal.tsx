@@ -12,33 +12,52 @@ function SettingsModal({ onClose }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState<'default' | 'presets'>('default');
   const [editedDefault, setEditedDefault] = useState<DefaultCellStyle>({ ...defaultCellStyle });
   const [editedPresets, setEditedPresets] = useState<ColorPreset[]>([...colorPresets]);
+  // Track which original preset each edited preset came from (for handling renames)
+  const [presetIndices, setPresetIndices] = useState<number[]>(colorPresets.map((_, i) => i));
 
   const handleSave = () => {
-    // Update cells that are using presets that changed
-    editedPresets.forEach((editedPreset, index) => {
-      const originalPreset = colorPresets[index];
-      if (originalPreset && originalPreset.name === editedPreset.name) {
-        // Check if preset changed
-        const hasChanged =
-          originalPreset.textColor !== editedPreset.textColor ||
-          originalPreset.bgColor !== editedPreset.bgColor ||
-          originalPreset.borderColor !== editedPreset.borderColor ||
-          originalPreset.borderThickness !== editedPreset.borderThickness ||
-          originalPreset.borderRadius !== editedPreset.borderRadius;
+    // Build a mapping from original preset names to their edited versions
+    // Use presetIndices to track which original preset each edited preset came from
+    const presetChanges = new Map<string, { edited: ColorPreset, original: ColorPreset }>();
 
-        if (hasChanged) {
-          // Update all cells using this style
-          cells.forEach(cell => {
-            if (cell.styleName === editedPreset.name) {
-              updateCell(cell.id, {
-                textColor: editedPreset.textColor,
-                backgroundColor: editedPreset.bgColor,
-                borderColor: editedPreset.borderColor || editedPreset.textColor,
-                borderThickness: editedPreset.borderThickness ?? 1,
-                borderRadius: editedPreset.borderRadius ?? 8,
-              });
-            }
-          });
+    editedPresets.forEach((editedPreset, index) => {
+      const originalIndex = presetIndices[index];
+      const originalPreset = colorPresets[originalIndex];
+      if (originalPreset) {
+        // Map from original name to both original and edited versions
+        presetChanges.set(originalPreset.name, {
+          edited: editedPreset,
+          original: originalPreset
+        });
+      }
+    });
+
+    // Update cells based on preset changes
+    cells.forEach(cell => {
+      if (cell.styleName) {
+        const change = presetChanges.get(cell.styleName);
+        if (change) {
+          // Check if preset properties changed
+          const hasChanged =
+            change.original.textColor !== change.edited.textColor ||
+            change.original.bgColor !== change.edited.bgColor ||
+            change.original.borderColor !== change.edited.borderColor ||
+            change.original.borderThickness !== change.edited.borderThickness ||
+            change.original.borderRadius !== change.edited.borderRadius;
+
+          const wasRenamed = change.original.name !== change.edited.name;
+
+          if (hasChanged || wasRenamed) {
+            // Update cell with new style properties and name
+            updateCell(cell.id, {
+              textColor: change.edited.textColor,
+              backgroundColor: change.edited.bgColor,
+              borderColor: change.edited.borderColor || change.edited.textColor,
+              borderThickness: change.edited.borderThickness ?? 1,
+              borderRadius: change.edited.borderRadius ?? 8,
+              styleName: change.edited.name, // Update to new name if renamed
+            });
+          }
         }
       }
     });
@@ -82,18 +101,22 @@ function SettingsModal({ onClose }: SettingsModalProps) {
       borderRadius: 8,
     };
     setEditedPresets([...editedPresets, newPreset]);
+    setPresetIndices([...presetIndices, -1]); // -1 indicates a new preset with no original
   };
 
   const handleDeletePreset = (index: number) => {
     if (confirm('Are you sure you want to delete this style?')) {
       const newPresets = editedPresets.filter((_, i) => i !== index);
+      const newIndices = presetIndices.filter((_, i) => i !== index);
       setEditedPresets(newPresets);
+      setPresetIndices(newIndices);
     }
   };
 
   const handleResetPresets = () => {
     if (confirm('Reset all quick styles to defaults? This will remove any custom styles you created.')) {
       setEditedPresets([...DEFAULT_COLOR_PRESETS]);
+      setPresetIndices(DEFAULT_COLOR_PRESETS.map((_, i) => i));
     }
   };
 
@@ -106,15 +129,21 @@ function SettingsModal({ onClose }: SettingsModalProps) {
   const handleMovePresetUp = (index: number) => {
     if (index === 0) return;
     const newPresets = [...editedPresets];
+    const newIndices = [...presetIndices];
     [newPresets[index - 1], newPresets[index]] = [newPresets[index], newPresets[index - 1]];
+    [newIndices[index - 1], newIndices[index]] = [newIndices[index], newIndices[index - 1]];
     setEditedPresets(newPresets);
+    setPresetIndices(newIndices);
   };
 
   const handleMovePresetDown = (index: number) => {
     if (index === editedPresets.length - 1) return;
     const newPresets = [...editedPresets];
+    const newIndices = [...presetIndices];
     [newPresets[index], newPresets[index + 1]] = [newPresets[index + 1], newPresets[index]];
+    [newIndices[index], newIndices[index + 1]] = [newIndices[index + 1], newIndices[index]];
     setEditedPresets(newPresets);
+    setPresetIndices(newIndices);
   };
 
   return (

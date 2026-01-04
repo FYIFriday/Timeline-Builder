@@ -173,6 +173,7 @@ function Canvas() {
           italic: false,
           underline: false,
           strikethrough: false,
+          styleName: preset.name, // Track which style was used
         };
 
         addCell(newCell);
@@ -261,8 +262,8 @@ function Canvas() {
 
       // Don't interfere with text editing, but allow Ctrl/Cmd+A for select all
       const target = e.target as HTMLElement;
-      if (target.tagName === 'TEXTAREA' || target.tagName === 'INPUT') {
-        // Allow Ctrl/Cmd+A for select all
+      if (target.tagName === 'TEXTAREA' || target.tagName === 'INPUT' || target.isContentEditable) {
+        // Allow Ctrl/Cmd+A for select all and let the browser handle text selection
         if (cmdOrCtrl && e.key === 'a') {
           return; // Let the browser handle it
         }

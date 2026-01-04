@@ -131,6 +131,13 @@ app.on('window-all-closed', () => {
 app.on('activate', () => {
   if (mainWindow === null) {
     createWindow();
+  } else {
+    // Bring existing window to front
+    if (mainWindow.isMinimized()) {
+      mainWindow.restore();
+    }
+    mainWindow.show();
+    mainWindow.focus();
   }
 });
 
@@ -233,4 +240,13 @@ ipcMain.handle('set-window-title', async (_, title: string) => {
 
 ipcMain.handle('get-current-filename', async () => {
   return currentFilePath ? path.basename(currentFilePath) : null;
+});
+
+ipcMain.handle('load-backup', async () => {
+  const backupPath = path.join(app.getPath('userData'), '.chronicle.backup');
+  if (fs.existsSync(backupPath)) {
+    const content = fs.readFileSync(backupPath, 'utf-8');
+    return content;
+  }
+  return null;
 });

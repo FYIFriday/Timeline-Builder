@@ -17,6 +17,7 @@ export interface Cell {
   italic: boolean;
   underline: boolean;
   strikethrough: boolean;
+  textAlign?: 'left' | 'center' | 'right' | 'justify';
   styleName?: string; // Track which preset style this cell is using
   isTimeline?: boolean;
   timelineConfig?: TimelineConfig;

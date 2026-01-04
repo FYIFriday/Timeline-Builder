@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Cell, TimelineConfig, Connection } from '../types';
 import { useStore } from '../store';
+import { AlignLeft, AlignCenter, AlignRight, AlignJustify } from 'lucide-react';
 
 interface CellComponentProps {
   cell: Cell;
@@ -9,35 +10,57 @@ interface CellComponentProps {
 
 type ResizeDirection = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w' | null;
 
-// Parse text for **bold** markdown syntax
+// Parse text for markdown-style formatting: **bold**, *italic*, __underline__, ~~strikethrough~~
 function renderFormattedText(text: string) {
-  const parts: React.ReactNode[] = [];
-  const regex = /\*\*(.*?)\*\*/g;
-  let lastIndex = 0;
-  let match;
+  // Must check ** before * to avoid conflicts
+  const regex = /(\*\*.*?\*\*|\*.*?\*|__.*?__|~~.*?~~)/g;
+  const parts = text.split(regex).filter(part => part !== '');
 
-  while ((match = regex.exec(text)) !== null) {
-    // Add text before the bold part
-    if (match.index > lastIndex) {
-      parts.push(text.substring(lastIndex, match.index));
+  return parts.map((part, index) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={index}>{part.slice(2, -2)}</strong>;
+    } else if (part.startsWith('*') && part.endsWith('*')) {
+      return <em key={index}>{part.slice(1, -1)}</em>;
+    } else if (part.startsWith('__') && part.endsWith('__')) {
+      return <u key={index}>{part.slice(2, -2)}</u>;
+    } else if (part.startsWith('~~') && part.endsWith('~~')) {
+      return <s key={index}>{part.slice(2, -2)}</s>;
     }
-    // Add bold part
-    parts.push(<strong key={match.index}>{match[1]}</strong>);
-    lastIndex = match.index + match[0].length;
-  }
+    return part;
+  });
+}
 
-  // Add remaining text
-  if (lastIndex < text.length) {
-    parts.push(text.substring(lastIndex));
-  }
+// Convert markdown text to HTML
+function markdownToHtml(text: string): string {
+  let html = text;
+  // Bold
+  html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  // Italic
+  html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+  // Underline
+  html = html.replace(/__(.*?)__/g, '<u>$1</u>');
+  // Strikethrough
+  html = html.replace(/~~(.*?)~~/g, '<s>$1</s>');
+  // Line breaks
+  html = html.replace(/\n/g, '<br>');
+  return html;
+}
 
-  return parts.length > 0 ? parts : text;
+// Strip HTML tags to get plain text
+function htmlToPlainText(html: string): string {
+  const temp = document.createElement('div');
+  temp.innerHTML = html;
+  return temp.textContent || temp.innerText || '';
 }
 
 function CellComponent({ cell, isSelected }: CellComponentProps) {
   const [isEditing, setIsEditing] = useState(false);
-  const [editText, setEditText] = useState(cell.text);
+  const [editHtml, setEditHtml] = useState('');
+  const [currentFontSize, setCurrentFontSize] = useState(cell.fontSize);
+  const [fontSizeInput, setFontSizeInput] = useState(cell.fontSize.toString());
   const editableRef = useRef<HTMLDivElement>(null);
+  const fontSizeInputRef = useRef<HTMLInputElement>(null);
+  const savedSelectionRef = useRef<Range | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [resizeDirection, setResizeDirection] = useState<ResizeDirection>(null);
@@ -49,7 +72,6 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
   const [connectionTargetId, setConnectionTargetId] = useState<string | null>(null);
   const [connectionTargetPinIndex, setConnectionTargetPinIndex] = useState<number | undefined>(undefined);
   const [connectionFromPinIndex, setConnectionFromPinIndex] = useState<number | undefined>(undefined);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Use refs to avoid stale closures in event handlers
   const dragStartRef = useRef({ x: 0, y: 0 });
@@ -71,19 +93,33 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
   } = useStore();
 
   useEffect(() => {
-    if (isEditing && textareaRef.current) {
-      textareaRef.current.focus();
-      textareaRef.current.select();
-      autoResizeTextarea();
-    }
-  }, [isEditing]);
+    if (isEditing && editableRef.current) {
+      // Set the initial HTML content
+      if (editableRef.current.innerHTML !== editHtml) {
+        editableRef.current.innerHTML = editHtml;
+      }
+      editableRef.current.focus();
+      // Select all content
+      const range = document.createRange();
+      const sel = window.getSelection();
+      range.selectNodeContents(editableRef.current);
+      sel?.removeAllRanges();
+      sel?.addRange(range);
 
-  const autoResizeTextarea = () => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
+      // Listen for selection changes to update font size display
+      const handleSelectionChange = () => {
+        if (document.activeElement === editableRef.current || editableRef.current?.contains(document.activeElement)) {
+          const detectedSize = getSelectionFontSize();
+          setFontSizeInput(detectedSize);
+        }
+      };
+
+      document.addEventListener('selectionchange', handleSelectionChange);
+      return () => {
+        document.removeEventListener('selectionchange', handleSelectionChange);
+      };
     }
-  };
+  }, [isEditing, editHtml]);
 
   const handleCellClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -109,19 +145,180 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
 
   const handleDoubleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
+    // Initialize HTML content from markdown text if it doesn't exist
+    if (!cell.htmlContent && cell.text) {
+      setEditHtml(markdownToHtml(cell.text));
+    } else {
+      setEditHtml(cell.htmlContent || '');
+    }
     setIsEditing(true);
   };
 
-  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setEditText(e.target.value);
-    autoResizeTextarea();
+  const handleContentInput = () => {
+    // Don't update state on input to prevent cursor jumping
+    // The content will be read from the ref on blur
   };
 
-  const handleTextBlur = () => {
+  const getSelectionFontSize = (): string => {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0 || !editableRef.current) {
+      return currentFontSize.toString();
+    }
+
+    const range = sel.getRangeAt(0);
+    if (range.collapsed) {
+      return currentFontSize.toString();
+    }
+
+    // Get all nodes in the selection
+    const container = range.commonAncestorContainer;
+    const nodes: Node[] = [];
+
+    const collectNodes = (node: Node) => {
+      if (node.nodeType === Node.TEXT_NODE && node.textContent?.trim()) {
+        nodes.push(node);
+      } else if (node.nodeType === Node.ELEMENT_NODE) {
+        node.childNodes.forEach(collectNodes);
+      }
+    };
+
+    if (container.nodeType === Node.TEXT_NODE) {
+      nodes.push(container);
+    } else {
+      collectNodes(container);
+    }
+
+    // Check font sizes of all text nodes
+    const sizes = new Set<string>();
+    nodes.forEach(node => {
+      let element = node.parentElement;
+      while (element && element !== editableRef.current) {
+        const fontSize = window.getComputedStyle(element).fontSize;
+        if (fontSize) {
+          sizes.add(fontSize);
+          break;
+        }
+        element = element.parentElement;
+      }
+    });
+
+    if (sizes.size === 0) {
+      return currentFontSize.toString();
+    } else if (sizes.size > 1) {
+      return ''; // Mixed sizes
+    } else {
+      const fontSize = Array.from(sizes)[0];
+      return fontSize.replace('px', '');
+    }
+  };
+
+  const applyTypedFontSize = () => {
+    const size = parseInt(fontSizeInput);
+    if (isNaN(size) || size < 8 || size > 72) {
+      setFontSizeInput(currentFontSize.toString());
+      return;
+    }
+
+    if (!editableRef.current) return;
+
+    // Restore the saved selection
+    const sel = window.getSelection();
+    if (!sel) return;
+
+    if (savedSelectionRef.current) {
+      try {
+        sel.removeAllRanges();
+        sel.addRange(savedSelectionRef.current.cloneRange());
+      } catch (e) {
+        console.error('Failed to restore selection:', e);
+        return;
+      }
+    }
+
+    if (sel.rangeCount === 0) return;
+
+    const range = sel.getRangeAt(0);
+    const selectedText = range.toString();
+
+    if (selectedText.length > 0) {
+      // Create a wrapper to contain the selection
+      const wrapper = document.createElement('span');
+      wrapper.className = 'temp-size-marker';
+
+      try {
+        range.surroundContents(wrapper);
+      } catch (e) {
+        const contents = range.extractContents();
+        wrapper.appendChild(contents);
+        range.insertNode(wrapper);
+      }
+
+      // Apply the uniform size to all text within the wrapper
+      const applyUniformSize = (element: HTMLElement) => {
+        // Remove any existing font-size styling on child elements
+        const walker = document.createTreeWalker(
+          element,
+          NodeFilter.SHOW_ELEMENT,
+          null
+        );
+
+        const elements: HTMLElement[] = [element];
+        let node;
+        while (node = walker.nextNode()) {
+          elements.push(node as HTMLElement);
+        }
+
+        elements.forEach(el => {
+          if (el.style.fontSize) {
+            el.style.fontSize = '';
+          }
+        });
+      };
+
+      applyUniformSize(wrapper);
+
+      // Set the uniform font size on the wrapper
+      wrapper.style.fontSize = `${size}px`;
+      wrapper.classList.remove('temp-size-marker');
+
+      // Unwrap if it's just a simple wrapper, otherwise keep it
+      setTimeout(() => {
+        try {
+          const newRange = document.createRange();
+          newRange.selectNodeContents(wrapper);
+          sel.removeAllRanges();
+          sel.addRange(newRange);
+          editableRef.current?.focus();
+        } catch (e) {
+          editableRef.current?.focus();
+        }
+      }, 0);
+    }
+
+    setCurrentFontSize(size);
+    setFontSizeInput(size.toString());
+  };
+
+  const handleContentBlur = (e: React.FocusEvent<HTMLDivElement>) => {
+    // Check if focus is moving to the toolbar or font size input
+    const relatedTarget = e.relatedTarget as HTMLElement;
+    if (relatedTarget && (
+      relatedTarget === fontSizeInputRef.current ||
+      relatedTarget.closest('[data-formatting-toolbar]')
+    )) {
+      // Don't close edit mode if clicking within toolbar
+      return;
+    }
+
     setIsEditing(false);
 
+    if (!editableRef.current) return;
+
+    const htmlContent = editableRef.current.innerHTML;
+    const plainText = htmlToPlainText(htmlContent);
+
     // Auto-delete if cell is completely empty
-    if (editText.trim() === '') {
+    if (plainText.trim() === '') {
       const { deleteCells } = useStore.getState();
       deleteCells([cell.id]);
       return;
@@ -129,106 +326,173 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
 
     // Only auto-resize if the cell hasn't been manually resized
     if (!cell.manuallyResized) {
-      // Calculate text dimensions to resize cell
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        // Include italic in font string for accurate measurement
-        const fontStyle = cell.italic ? 'italic ' : '';
-        const fontWeight = cell.bold ? 'bold ' : '';
-        ctx.font = `${fontStyle}${fontWeight}${cell.fontSize}px ${cell.fontFamily}`;
+      // Create a temporary div to measure content
+      const tempDiv = document.createElement('div');
+      tempDiv.style.position = 'absolute';
+      tempDiv.style.visibility = 'hidden';
+      tempDiv.style.width = 'auto';
+      tempDiv.style.height = 'auto';
+      tempDiv.style.whiteSpace = 'pre-wrap';
+      tempDiv.style.wordBreak = 'break-word';
+      tempDiv.style.fontFamily = cell.fontFamily;
+      tempDiv.style.fontSize = `${cell.fontSize}px`;
+      tempDiv.style.padding = '12px';
+      tempDiv.style.maxWidth = '600px';
+      tempDiv.innerHTML = htmlContent;
+      document.body.appendChild(tempDiv);
 
-        const lines = editText.split('\n');
-        const horizontalPadding = 32;
-        const verticalPadding = 24;
-        const lineHeight = cell.fontSize * 1.5;
+      const newWidth = Math.max(200, Math.min(600, tempDiv.scrollWidth + 32));
+      const newHeight = Math.max(30, tempDiv.scrollHeight + 24);
 
-        // Calculate width: use a reasonable default, only expand for very long single words
-        let newWidth = 200; // Default reasonable width
+      document.body.removeChild(tempDiv);
 
-        // Check each line for long single words that won't wrap
-        lines.forEach(line => {
-          const words = line.split(/\s+/);
-          words.forEach(word => {
-            const wordWidth = ctx.measureText(word).width;
-            if (wordWidth + horizontalPadding > newWidth) {
-              newWidth = Math.ceil(wordWidth + horizontalPadding);
-            }
-          });
-        });
-
-        // Cap maximum width
-        newWidth = Math.min(newWidth, 600);
-
-        // Calculate height based on number of lines with extra space to prevent clipping
-        const textHeight = lines.length * lineHeight;
-        const newHeight = Math.max(30, Math.ceil(textHeight + verticalPadding * 2));
-
-        updateCell(cell.id, {
-          text: editText,
-          width: newWidth,
-          height: newHeight
-        });
-      } else {
-        updateCell(cell.id, { text: editText });
-      }
+      updateCell(cell.id, {
+        text: plainText,
+        htmlContent: htmlContent,
+        width: newWidth,
+        height: newHeight
+      });
     } else {
-      // Just update the text, keep the size
-      updateCell(cell.id, { text: editText });
+      // Just update the content, keep the size
+      updateCell(cell.id, {
+        text: plainText,
+        htmlContent: htmlContent
+      });
     }
 
     saveHistory();
   };
 
-  const handleTextKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleContentKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      setIsEditing(false);
+      // Reset content
+      if (cell.htmlContent) {
+        setEditHtml(cell.htmlContent);
+      } else {
+        setEditHtml(markdownToHtml(cell.text));
+      }
+    }
+
     const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
     const cmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
 
-    if (e.key === 'Escape') {
-      setIsEditing(false);
-      setEditText(cell.text);
-    }
-    // Toggle Bold - wrap selected text with **
-    else if (cmdOrCtrl && e.key === 'b') {
+    // Format shortcuts
+    if (cmdOrCtrl && e.key === 'b') {
       e.preventDefault();
-      const textarea = e.currentTarget;
-      const start = textarea.selectionStart;
-      const end = textarea.selectionEnd;
-      const selectedText = editText.substring(start, end);
+      applyFormat('bold');
+    } else if (cmdOrCtrl && e.key === 'i') {
+      e.preventDefault();
+      applyFormat('italic');
+    } else if (cmdOrCtrl && e.key === 'u') {
+      e.preventDefault();
+      applyFormat('underline');
+    } else if (cmdOrCtrl && e.shiftKey && e.key === 'S') {
+      e.preventDefault();
+      applyFormat('strikeThrough');
+    }
+  };
 
-      if (selectedText) {
-        // Check if selection is already bold (wrapped with **)
-        const beforeStart = start >= 2 ? editText.substring(start - 2, start) : '';
-        const afterEnd = end + 2 <= editText.length ? editText.substring(end, end + 2) : '';
+  const applyFormat = (command: string) => {
+    if (!editableRef.current) return;
+    editableRef.current.focus();
+    document.execCommand(command, false);
+  };
 
-        if (beforeStart === '**' && afterEnd === '**') {
-          // Remove bold markers
-          const newText = editText.substring(0, start - 2) + selectedText + editText.substring(end + 2);
-          setEditText(newText);
-          setTimeout(() => {
-            textarea.selectionStart = start - 2;
-            textarea.selectionEnd = end - 2;
-          }, 0);
-        } else {
-          // Add bold markers
-          const newText = editText.substring(0, start) + '**' + selectedText + '**' + editText.substring(end);
-          setEditText(newText);
-          setTimeout(() => {
-            textarea.selectionStart = start + 2;
-            textarea.selectionEnd = end + 2;
-          }, 0);
-        }
+  const applyAlignment = (alignment: 'left' | 'center' | 'right' | 'justify') => {
+    updateCell(cell.id, { textAlign: alignment });
+    editableRef.current?.focus();
+  };
+
+  const changeFontSize = (delta: number) => {
+    if (!editableRef.current) return;
+
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+
+    const range = sel.getRangeAt(0);
+    const selectedText = range.toString();
+
+    if (selectedText.length === 0) return;
+
+    // Create a wrapper span to mark our selection
+    const wrapper = document.createElement('span');
+    wrapper.className = 'temp-size-adjustment';
+
+    try {
+      // Try to wrap the selection
+      range.surroundContents(wrapper);
+    } catch (e) {
+      // If that fails, extract and wrap
+      const contents = range.extractContents();
+      wrapper.appendChild(contents);
+      range.insertNode(wrapper);
+    }
+
+    // Now find all text-containing elements within the wrapper and adjust their sizes
+    const adjustElement = (element: HTMLElement) => {
+      // Get computed style before making changes
+      const computedSize = window.getComputedStyle(element).fontSize;
+      const currentSize = parseInt(computedSize);
+      const newSize = Math.max(8, Math.min(72, currentSize + delta));
+
+      // If this element has text children, wrap them or adjust the element
+      if (element.childNodes.length > 0) {
+        Array.from(element.childNodes).forEach(child => {
+          if (child.nodeType === Node.TEXT_NODE && child.textContent?.trim()) {
+            // Text node - get its current size and wrap in span
+            const textComputedSize = window.getComputedStyle(element).fontSize;
+            const textCurrentSize = parseInt(textComputedSize);
+            const textNewSize = Math.max(8, Math.min(72, textCurrentSize + delta));
+
+            const span = document.createElement('span');
+            span.style.fontSize = `${textNewSize}px`;
+            span.textContent = child.textContent;
+            child.replaceWith(span);
+          } else if (child.nodeType === Node.ELEMENT_NODE) {
+            adjustElement(child as HTMLElement);
+          }
+        });
       }
-    }
-    // Toggle Italic
-    else if (cmdOrCtrl && e.key === 'i') {
-      e.preventDefault();
-      updateCell(cell.id, { italic: !cell.italic });
-    }
-    // Toggle Underline
-    else if (cmdOrCtrl && e.key === 'u') {
-      e.preventDefault();
-      updateCell(cell.id, { underline: !cell.underline });
+
+      // Also set size on the element itself if it has inline font-size
+      if (element.style.fontSize) {
+        element.style.fontSize = `${newSize}px`;
+      }
+    };
+
+    // Adjust all elements in the wrapper
+    adjustElement(wrapper);
+
+    // Unwrap the temp wrapper but keep its contents
+    const parent = wrapper.parentNode;
+    if (parent) {
+      const children = Array.from(wrapper.childNodes);
+      children.forEach(child => {
+        parent.insertBefore(child, wrapper);
+      });
+      parent.removeChild(wrapper);
+
+      // Re-select the modified content
+      setTimeout(() => {
+        try {
+          if (children.length > 0) {
+            const newRange = document.createRange();
+            newRange.setStartBefore(children[0]);
+            newRange.setEndAfter(children[children.length - 1]);
+            sel.removeAllRanges();
+            sel.addRange(newRange);
+          }
+          editableRef.current?.focus();
+
+          // Update the font size display
+          const detectedSize = getSelectionFontSize();
+          setFontSizeInput(detectedSize);
+        } catch (e) {
+          editableRef.current?.focus();
+        }
+      }, 0);
     }
   };
 
@@ -384,7 +648,7 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
         setIsHoveringForConnection(false);
       }
     }
-  }, [isDragging, isResizing, isConnecting, zoom, selectedCellIds, updateCell, cell.id]);
+  }, [isDragging, isResizing, isConnecting, zoom, offsetX, offsetY, selectedCellIds, updateCell, cell.id]);
 
   const handleMouseUp = useCallback(() => {
     if (isDragging || isResizing) {
@@ -536,7 +800,7 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
           cursor: isConnecting ? 'crosshair' : isDragging ? 'grabbing' : 'grab',
           userSelect: 'none',
           display: 'flex',
-          alignItems: 'center',
+          alignItems: isEditing ? 'flex-start' : 'center',
           justifyContent: 'center',
           zIndex: 10,
           boxSizing: 'border-box',
@@ -544,34 +808,296 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
         }}
       >
       {isEditing ? (
-        <textarea
-          ref={textareaRef}
-          value={editText}
-          onChange={handleTextChange}
-          onBlur={handleTextBlur}
-          onKeyDown={handleTextKeyDown}
-          spellCheck={true}
+        <>
+          {/* Formatting Toolbar */}
+          <div
+            data-formatting-toolbar
+            style={{
+              position: 'absolute',
+              top: -40,
+              left: 0,
+              backgroundColor: '#ffffff',
+              border: '1px solid #ccc',
+              borderRadius: 4,
+              padding: '4px',
+              display: 'flex',
+              gap: '4px',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+              zIndex: 1000,
+            }}
+          >
+            <button
+              onMouseDown={(e) => {
+                e.preventDefault();
+                applyFormat('bold');
+              }}
+              style={{
+                padding: '4px 8px',
+                border: '1px solid #ccc',
+                borderRadius: 3,
+                backgroundColor: '#fff',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+              }}
+              title="Bold (Ctrl+B)"
+            >
+              B
+            </button>
+            <button
+              onMouseDown={(e) => {
+                e.preventDefault();
+                applyFormat('italic');
+              }}
+              style={{
+                padding: '4px 8px',
+                border: '1px solid #ccc',
+                borderRadius: 3,
+                backgroundColor: '#fff',
+                cursor: 'pointer',
+                fontStyle: 'italic',
+              }}
+              title="Italic (Ctrl+I)"
+            >
+              I
+            </button>
+            <button
+              onMouseDown={(e) => {
+                e.preventDefault();
+                applyFormat('underline');
+              }}
+              style={{
+                padding: '4px 8px',
+                border: '1px solid #ccc',
+                borderRadius: 3,
+                backgroundColor: '#fff',
+                cursor: 'pointer',
+                textDecoration: 'underline',
+              }}
+              title="Underline (Ctrl+U)"
+            >
+              U
+            </button>
+            <button
+              onMouseDown={(e) => {
+                e.preventDefault();
+                applyFormat('strikeThrough');
+              }}
+              style={{
+                padding: '4px 8px',
+                border: '1px solid #ccc',
+                borderRadius: 3,
+                backgroundColor: '#fff',
+                cursor: 'pointer',
+                textDecoration: 'line-through',
+              }}
+              title="Strikethrough (Ctrl+Shift+S)"
+            >
+              S
+            </button>
+            <div style={{ width: 1, backgroundColor: '#ccc' }} />
+            <button
+              onMouseDown={(e) => {
+                e.preventDefault();
+                changeFontSize(-1);
+              }}
+              style={{
+                padding: '4px 8px',
+                border: '1px solid #ccc',
+                borderRadius: 3,
+                backgroundColor: '#fff',
+                cursor: 'pointer',
+                fontSize: '14px',
+              }}
+              title="Decrease Font Size"
+            >
+              −
+            </button>
+            <input
+              ref={fontSizeInputRef}
+              type="text"
+              value={fontSizeInput}
+              placeholder="—"
+              onFocus={() => {
+                // Save the current selection before focusing the input
+                const sel = window.getSelection();
+                if (sel && sel.rangeCount > 0) {
+                  savedSelectionRef.current = sel.getRangeAt(0).cloneRange();
+                }
+              }}
+              onMouseDown={(e) => {
+                e.stopPropagation();
+                // Also save selection on mouse down
+                const sel = window.getSelection();
+                if (sel && sel.rangeCount > 0) {
+                  savedSelectionRef.current = sel.getRangeAt(0).cloneRange();
+                }
+              }}
+              onChange={(e) => {
+                setFontSizeInput(e.target.value);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  applyTypedFontSize();
+                  editableRef.current?.focus();
+                } else if (e.key === 'Escape') {
+                  e.preventDefault();
+                  setFontSizeInput(currentFontSize.toString());
+                  editableRef.current?.focus();
+                }
+              }}
+              onBlur={() => {
+                if (fontSizeInput.trim() !== '') {
+                  applyTypedFontSize();
+                }
+              }}
+              style={{
+                padding: '4px 8px',
+                border: '1px solid #ccc',
+                borderRadius: 3,
+                backgroundColor: '#fff',
+                width: '45px',
+                textAlign: 'center',
+                fontSize: '12px',
+                cursor: 'text',
+              }}
+              title="Font Size (8-72px)"
+            />
+            <button
+              onMouseDown={(e) => {
+                e.preventDefault();
+                changeFontSize(1);
+              }}
+              style={{
+                padding: '4px 8px',
+                border: '1px solid #ccc',
+                borderRadius: 3,
+                backgroundColor: '#fff',
+                cursor: 'pointer',
+                fontSize: '14px',
+              }}
+              title="Increase Font Size"
+            >
+              +
+            </button>
+            <div style={{ width: 1, backgroundColor: '#ccc' }} />
+            <button
+              onMouseDown={(e) => {
+                e.preventDefault();
+                applyAlignment('left');
+              }}
+              style={{
+                padding: '4px 8px',
+                border: '1px solid #ccc',
+                borderRadius: 3,
+                backgroundColor: cell.textAlign === 'left' ? '#e0e0e0' : '#fff',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+              title="Align Left"
+            >
+              <AlignLeft size={16} />
+            </button>
+            <button
+              onMouseDown={(e) => {
+                e.preventDefault();
+                applyAlignment('center');
+              }}
+              style={{
+                padding: '4px 8px',
+                border: '1px solid #ccc',
+                borderRadius: 3,
+                backgroundColor: cell.textAlign === 'center' || !cell.textAlign ? '#e0e0e0' : '#fff',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+              title="Align Center"
+            >
+              <AlignCenter size={16} />
+            </button>
+            <button
+              onMouseDown={(e) => {
+                e.preventDefault();
+                applyAlignment('right');
+              }}
+              style={{
+                padding: '4px 8px',
+                border: '1px solid #ccc',
+                borderRadius: 3,
+                backgroundColor: cell.textAlign === 'right' ? '#e0e0e0' : '#fff',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+              title="Align Right"
+            >
+              <AlignRight size={16} />
+            </button>
+            <button
+              onMouseDown={(e) => {
+                e.preventDefault();
+                applyAlignment('justify');
+              }}
+              style={{
+                padding: '4px 8px',
+                border: '1px solid #ccc',
+                borderRadius: 3,
+                backgroundColor: cell.textAlign === 'justify' ? '#e0e0e0' : '#fff',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+              title="Justify"
+            >
+              <AlignJustify size={16} />
+            </button>
+          </div>
+
+          {/* ContentEditable Div */}
+          <div
+            ref={editableRef}
+            contentEditable
+            onInput={handleContentInput}
+            onBlur={handleContentBlur}
+            onKeyDown={handleContentKeyDown}
+            spellCheck={true}
+            suppressContentEditableWarning
+            style={{
+              width: '100%',
+              height: '100%',
+              border: 'none',
+              outline: 'none',
+              backgroundColor: 'transparent',
+              color: cell.textColor,
+              overflow: 'auto',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+              cursor: 'text',
+              textAlign: cell.textAlign || 'center',
+              ...fontStyle,
+            }}
+          />
+        </>
+      ) : (
+        <div
           style={{
             width: '100%',
             height: '100%',
-            border: 'none',
-            outline: 'none',
-            resize: 'none',
-            backgroundColor: 'transparent',
-            color: cell.textColor,
-            ...fontStyle,
+            overflow: 'hidden',
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word',
+            textAlign: cell.textAlign || 'center',
+          }}
+          dangerouslySetInnerHTML={{
+            __html: cell.htmlContent || markdownToHtml(cell.text || '')
           }}
         />
-      ) : (
-        <div style={{
-          width: '100%',
-          height: '100%',
-          overflow: 'hidden',
-          whiteSpace: 'pre-wrap',
-          wordBreak: 'break-word'
-        }}>
-          {renderFormattedText(cell.text)}
-        </div>
       )}
 
       {isSelected && !isEditing && (
@@ -682,7 +1208,8 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
       )}
     </div>
 
-    {isConnecting && (() => {
+    {/* Preview line disabled - coordinates were not aligning correctly */}
+    {/* {isConnecting && (() => {
       // Calculate start position based on whether it's a timeline pin
       let startX = cell.x * zoom + offsetX + (cell.width * zoom) / 2;
       let startY = cell.y * zoom + offsetY + (cell.height * zoom) / 2;
@@ -744,7 +1271,7 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
             width: '100vw',
             height: '100vh',
             pointerEvents: 'none',
-            zIndex: 1000,
+            zIndex: 9999,
           }}
         >
           <line
@@ -753,12 +1280,12 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
             x2={connectionEnd.x}
             y2={connectionEnd.y}
             stroke="#3b82f6"
-            strokeWidth={2}
-            strokeDasharray="4 4"
+            strokeWidth={3}
+            strokeDasharray="5 5"
           />
         </svg>
       );
-    })()}
+    })()} */}
     </>
   );
 }
