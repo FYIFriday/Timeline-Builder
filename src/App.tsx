@@ -150,6 +150,7 @@ function App() {
               canvasBackgroundColor: parsed.canvasBackgroundColor || '#ffffff',
               colorPresets: parsed.colorPresets,
               defaultCellStyle: parsed.defaultCellStyle,
+              pinnedLocations: parsed.pinnedLocations || [],
             });
             // Set window title to indicate recovered work
             await window.electron.setWindowTitle('*Recovered* - Timeline Free Plotter');
@@ -173,6 +174,7 @@ function App() {
         canvasBackgroundColor: state.canvasBackgroundColor,
         colorPresets: state.colorPresets,
         defaultCellStyle: state.defaultCellStyle,
+        pinnedLocations: state.pinnedLocations,
       });
       if (window.electron) {
         const filePath = await window.electron.saveFile(data);
@@ -191,6 +193,7 @@ function App() {
         canvasBackgroundColor: state.canvasBackgroundColor,
         colorPresets: state.colorPresets,
         defaultCellStyle: state.defaultCellStyle,
+        pinnedLocations: state.pinnedLocations,
       });
       if (window.electron) {
         const filePath = await window.electron.saveFileAs(data);
@@ -233,6 +236,7 @@ function App() {
           canvasBackgroundColor: state.canvasBackgroundColor,
           colorPresets: state.colorPresets,
           defaultCellStyle: state.defaultCellStyle,
+          pinnedLocations: state.pinnedLocations,
         },
         null,
         2
@@ -862,6 +866,7 @@ function App() {
         canvasBackgroundColor: state.canvasBackgroundColor,
         colorPresets: state.colorPresets,
         defaultCellStyle: state.defaultCellStyle,
+        pinnedLocations: state.pinnedLocations,
       });
       if (window.electron) {
         await window.electron.saveBackup(data);

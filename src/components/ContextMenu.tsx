@@ -461,19 +461,20 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal, onPinLocation }: Cont
   const handleCreateConnectionDot = () => {
     const worldX = (position.x - offsetX) / zoom;
     const worldY = (position.y - offsetY) / zoom;
+    const dotSize = defaultCellStyle.defaultDotSize || 16;
 
     addCell({
       id: `cell-${Date.now()}`,
       x: worldX,
       y: worldY,
-      width: 16,
-      height: 16,
+      width: dotSize,
+      height: dotSize,
       text: '',
       backgroundColor: '#333333',
       textColor: '#ffffff',
       borderColor: '#333333',
       borderThickness: 0,
-      borderRadius: 8,
+      borderRadius: dotSize / 2,
       fontFamily: 'Arial',
       fontSize: 14,
       bold: false,
@@ -483,6 +484,59 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal, onPinLocation }: Cont
       isDot: true,
     });
     saveHistory();
+    onClose();
+  };
+
+  const handleCreateImage = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const imageData = event.target?.result as string;
+        const worldX = (position.x - offsetX) / zoom;
+        const worldY = (position.y - offsetY) / zoom;
+
+        // Create an image to get dimensions
+        const img = new Image();
+        img.onload = () => {
+          const aspectRatio = img.width / img.height;
+          const defaultWidth = 300;
+          const defaultHeight = defaultWidth / aspectRatio;
+
+          addCell({
+            id: `cell-${Date.now()}`,
+            x: worldX,
+            y: worldY,
+            width: defaultWidth,
+            height: defaultHeight,
+            text: '',
+            backgroundColor: defaultCellStyle.backgroundColor,
+            textColor: defaultCellStyle.textColor,
+            borderColor: defaultCellStyle.borderColor,
+            borderThickness: defaultCellStyle.borderThickness,
+            borderRadius: defaultCellStyle.borderRadius,
+            fontFamily: defaultCellStyle.fontFamily,
+            fontSize: defaultCellStyle.fontSize,
+            bold: false,
+            italic: false,
+            underline: false,
+            strikethrough: false,
+            isImage: true,
+            imageData: imageData,
+            imageCrop: { x: 0, y: 0, width: 1, height: 1 }, // Full image initially
+          });
+          saveHistory();
+        };
+        img.src = imageData;
+      };
+      reader.readAsDataURL(file);
+    };
+    input.click();
     onClose();
   };
 
@@ -515,6 +569,24 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal, onPinLocation }: Cont
           <MenuItem onClick={() => handleDotSize(16)}>Default (16px)</MenuItem>
           <MenuItem onClick={() => handleDotSize(20)}>Large (20px)</MenuItem>
           <MenuItem onClick={() => handleDotSize(24)}>Extra Large (24px)</MenuItem>
+        </MenuSubmenu>
+        <MenuSubmenu label="Align" disabled={selectedCellIds.length < 2}>
+          <MenuItem onClick={() => handleAlign('left')} disabled={selectedCellIds.length < 2}>Left Edge</MenuItem>
+          <MenuItem onClick={() => handleAlign('hcenter')} disabled={selectedCellIds.length < 2}>Horizontal Center</MenuItem>
+          <MenuItem onClick={() => handleAlign('right')} disabled={selectedCellIds.length < 2}>Right Edge</MenuItem>
+          <MenuDivider />
+          <MenuItem onClick={() => handleAlign('top')} disabled={selectedCellIds.length < 2}>Top Edge</MenuItem>
+          <MenuItem onClick={() => handleAlign('vcenter')} disabled={selectedCellIds.length < 2}>Vertical Center</MenuItem>
+          <MenuItem onClick={() => handleAlign('bottom')} disabled={selectedCellIds.length < 2}>Bottom Edge</MenuItem>
+        </MenuSubmenu>
+        <MenuSubmenu label="Connection" disabled={selectedCellIds.length < 2}>
+          <MenuItem onClick={() => handleAddConnection('Dashed')} disabled={selectedCellIds.length < 2}>Add dashed connection</MenuItem>
+          <MenuItem onClick={() => handleAddConnection('Solid')} disabled={selectedCellIds.length < 2}>Add solid connection</MenuItem>
+          <MenuItem onClick={() => handleAddConnection('Arrow')} disabled={selectedCellIds.length < 2}>Add arrow connection</MenuItem>
+        </MenuSubmenu>
+        <MenuSubmenu label="Distribute" disabled={selectedCellIds.length < 3}>
+          <MenuItem onClick={() => handleDistribute('horizontal')} disabled={selectedCellIds.length < 3}>Horizontally</MenuItem>
+          <MenuItem onClick={() => handleDistribute('vertical')} disabled={selectedCellIds.length < 3}>Vertically</MenuItem>
         </MenuSubmenu>
         <MenuDivider />
         <MenuItem onClick={handleGroupObjects} disabled={selectedCellIds.length < 2}>
@@ -572,6 +644,7 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal, onPinLocation }: Cont
       </MenuSubmenu>
       <MenuItem onClick={onOpenTimelineModal}>Add Timeline cell</MenuItem>
       <MenuItem onClick={handleCreateConnectionDot}>Add Connection dot</MenuItem>
+      <MenuItem onClick={handleCreateImage}>Add image</MenuItem>
       <MenuSubmenu label="Change style" disabled={!hasCellsSelected}>
         {colorPresets.map((preset) => (
           <MenuItem

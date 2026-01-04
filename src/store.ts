@@ -66,6 +66,7 @@ const DEFAULT_CELL_STYLE: DefaultCellStyle = {
   borderRadius: 8,
   fontSize: 16,
   fontFamily: 'Arial',
+  defaultDotSize: 8,
 };
 
 const initialState: CanvasState = {

@@ -25,6 +25,9 @@ export interface Cell {
   dotShape?: 'circle' | 'square' | 'diamond'; // Shape of the dot
   groupId?: string; // ID of the group this cell belongs to
   manuallyResized?: boolean;
+  isImage?: boolean; // Whether this cell contains an image
+  imageData?: string; // Base64 encoded image data
+  imageCrop?: { x: number; y: number; width: number; height: number }; // Crop rectangle (0-1 normalized)
 }
 
 export interface TimelineConfig {
@@ -65,6 +68,7 @@ export interface DefaultCellStyle {
   borderRadius: number;
   fontSize: number;
   fontFamily: string;
+  defaultDotSize: number;
 }
 
 export interface PinnedLocation {

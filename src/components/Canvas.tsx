@@ -26,6 +26,7 @@ function Canvas() {
   const [selectionBox, setSelectionBox] = useState<{ startX: number; startY: number; endX: number; endY: number } | null>(null);
   const [isSelecting, setIsSelecting] = useState(false);
   const [isShiftSelecting, setIsShiftSelecting] = useState(false);
+  const lastMouseDownPos = useRef<{ x: number; y: number; time: number } | null>(null);
 
   const {
     cells,
@@ -135,6 +136,9 @@ function Canvas() {
       const x = (e.clientX - rect.left - offsetX) / zoom;
       const y = (e.clientY - rect.top - offsetY) / zoom;
 
+      // Track mouse down position and time for double-click detection
+      lastMouseDownPos.current = { x: e.clientX, y: e.clientY, time: Date.now() };
+
       setIsSelecting(true);
       setIsShiftSelecting(e.shiftKey);
       setSelectionBox({ startX: x, startY: y, endX: x, endY: y });
@@ -236,24 +240,37 @@ function Canvas() {
 
   const handleDoubleClick = (e: React.MouseEvent) => {
     if (e.target === canvasRef.current) {
+      // Check if mouse moved significantly since last mouse down (indicating drag/area-select)
+      if (lastMouseDownPos.current) {
+        const dx = Math.abs(e.clientX - lastMouseDownPos.current.x);
+        const dy = Math.abs(e.clientY - lastMouseDownPos.current.y);
+        const timeSinceMouseDown = Date.now() - lastMouseDownPos.current.time;
+
+        // Don't create cell if mouse moved more than 5 pixels or time between clicks is too long
+        if (dx > 5 || dy > 5 || timeSinceMouseDown > 400) {
+          return;
+        }
+      }
+
       const rect = canvasRef.current.getBoundingClientRect();
       const x = (e.clientX - rect.left - offsetX) / zoom;
       const y = (e.clientY - rect.top - offsetY) / zoom;
 
       // Shift + double-click creates a connection dot
       if (e.shiftKey) {
+        const dotSize = defaultCellStyle.defaultDotSize || 16;
         const dotCell: Cell = {
           id: `cell-${Date.now()}`,
-          x: x - 8, // Center the dot on cursor
-          y: y - 8,
-          width: 16,
-          height: 16,
+          x: x - dotSize / 2, // Center the dot on cursor
+          y: y - dotSize / 2,
+          width: dotSize,
+          height: dotSize,
           text: '',
           backgroundColor: '#333333',
           textColor: '#ffffff',
           borderColor: '#333333',
           borderThickness: 0,
-          borderRadius: 8,
+          borderRadius: dotSize / 2,
           fontFamily: 'Arial',
           fontSize: 14,
           bold: false,
@@ -797,6 +814,7 @@ function ConnectionContextMenu({
   onClose: () => void;
 }) {
   const menuRef = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState({ x, y });
   const { connections, updateConnection, deleteConnection, saveHistory } = useStore();
   const connection = connections.find((c) => c.id === connectionId);
 
@@ -810,6 +828,42 @@ function ConnectionContextMenu({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [onClose]);
+
+  // Smart positioning: adjust if menu would go off screen
+  useEffect(() => {
+    if (menuRef.current) {
+      const menuRect = menuRef.current.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      const margin = 10;
+
+      let newX = x;
+      let newY = y;
+
+      if (x + menuRect.width > viewportWidth - margin) {
+        newX = Math.max(margin, viewportWidth - menuRect.width - margin);
+      }
+
+      if (newX < margin) {
+        newX = margin;
+      }
+
+      if (y + menuRect.height > viewportHeight - margin) {
+        newY = y - menuRect.height;
+        if (newY < margin) {
+          newY = Math.max(margin, viewportHeight - menuRect.height - margin);
+        }
+      }
+
+      if (newY < margin) {
+        newY = margin;
+      }
+
+      if (newX !== position.x || newY !== position.y) {
+        setPosition({ x: newX, y: newY });
+      }
+    }
+  }, [x, y, position.x, position.y]);
 
   if (!connection) return null;
 
@@ -838,13 +892,24 @@ function ConnectionContextMenu({
     onClose();
   };
 
+  const handleReverseDirection = () => {
+    updateConnection(connectionId, {
+      fromCellId: connection.toCellId,
+      toCellId: connection.fromCellId,
+      fromPinIndex: connection.toPinIndex,
+      toPinIndex: connection.fromPinIndex,
+    });
+    saveHistory();
+    onClose();
+  };
+
   return (
     <div
       ref={menuRef}
       style={{
         position: 'fixed',
-        left: x,
-        top: y,
+        left: position.x,
+        top: position.y,
         backgroundColor: 'white',
         border: '1px solid #ccc',
         borderRadius: 4,
@@ -858,6 +923,9 @@ function ConnectionContextMenu({
         <MenuItem onClick={() => handleStyle('Dashed')}>Dashed</MenuItem>
         <MenuItem onClick={() => handleStyle('Solid')}>Solid</MenuItem>
         <MenuItem onClick={() => handleStyle('Bold')}>Bold</MenuItem>
+        <MenuItem onClick={() => handleStyle('Arrow')}>Arrow</MenuItem>
+        <MenuDivider />
+        <MenuItem onClick={handleReverseDirection}>Reverse Direction</MenuItem>
         <MenuDivider />
         <MenuItem onClick={handleColorPicker}>Color</MenuItem>
         <MenuDivider />

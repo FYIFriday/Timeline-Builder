@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { Cell, TimelineConfig, Connection } from '../types';
 import { useStore } from '../store';
 import { AlignLeft, AlignCenter, AlignRight, AlignJustify } from 'lucide-react';
+import ImageCellComponent from './ImageCellComponent';
 
 interface CellComponentProps {
   cell: Cell;
@@ -857,6 +858,21 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
     fontStyle: cell.italic ? 'italic' : 'normal',
     textDecoration: `${cell.underline ? 'underline' : ''} ${cell.strikethrough ? 'line-through' : ''}`.trim(),
   };
+
+  // Render image cell
+  if (cell.isImage && cell.imageData) {
+    return (
+      <ImageCellComponent
+        cell={cell}
+        isSelected={isSelected}
+        onCellClick={handleCellClick}
+        onContextMenu={handleContextMenu}
+        onMouseDown={handleMouseDown}
+        isDragging={isDragging}
+        zoom={zoom}
+      />
+    );
+  }
 
   // Render connection dot
   if (cell.isDot) {

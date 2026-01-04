@@ -29,7 +29,7 @@ function SettingsModal({ onClose }: SettingsModalProps) {
     updatePinnedLocation,
     deletePinnedLocation,
   } = useStore();
-  const [activeTab, setActiveTab] = useState<'default' | 'presets' | 'grid' | 'pinnedLocations' | 'guide'>('default');
+  const [activeTab, setActiveTab] = useState<'default' | 'presets' | 'pinnedLocations' | 'guide'>('default');
   const [editedDefault, setEditedDefault] = useState<DefaultCellStyle>({ ...defaultCellStyle });
   const [editedPresets, setEditedPresets] = useState<ColorPreset[]>([...colorPresets]);
   // Track which original preset each edited preset came from (for handling renames)
@@ -279,19 +279,6 @@ function SettingsModal({ onClose }: SettingsModalProps) {
             Quick Styles
           </button>
           <button
-            onClick={() => setActiveTab('grid')}
-            style={{
-              padding: '8px 16px',
-              background: 'none',
-              border: 'none',
-              borderBottom: activeTab === 'grid' ? '2px solid #3b82f6' : 'none',
-              cursor: 'pointer',
-              fontWeight: activeTab === 'grid' ? 'bold' : 'normal',
-            }}
-          >
-            Grid
-          </button>
-          <button
             onClick={() => setActiveTab('pinnedLocations')}
             style={{
               padding: '8px 16px',
@@ -381,6 +368,161 @@ function SettingsModal({ onClose }: SettingsModalProps) {
                 max="72"
               />
             </label>
+            <div>
+              <div style={{ marginBottom: 4, fontSize: 14, fontWeight: 'bold' }}>Default Dot Size (px)</div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => setEditedDefault({ ...editedDefault, defaultDotSize: 8 })}
+                  style={{
+                    padding: '6px 12px',
+                    border: editedDefault.defaultDotSize === 8 ? '2px solid #3b82f6' : '1px solid #ccc',
+                    borderRadius: 4,
+                    backgroundColor: editedDefault.defaultDotSize === 8 ? '#eff6ff' : '#ffffff',
+                    cursor: 'pointer',
+                    fontSize: 13,
+                  }}
+                >
+                  Small (8px)
+                </button>
+                <button
+                  onClick={() => setEditedDefault({ ...editedDefault, defaultDotSize: 12 })}
+                  style={{
+                    padding: '6px 12px',
+                    border: editedDefault.defaultDotSize === 12 ? '2px solid #3b82f6' : '1px solid #ccc',
+                    borderRadius: 4,
+                    backgroundColor: editedDefault.defaultDotSize === 12 ? '#eff6ff' : '#ffffff',
+                    cursor: 'pointer',
+                    fontSize: 13,
+                  }}
+                >
+                  Medium (12px)
+                </button>
+                <button
+                  onClick={() => setEditedDefault({ ...editedDefault, defaultDotSize: 16 })}
+                  style={{
+                    padding: '6px 12px',
+                    border: editedDefault.defaultDotSize === 16 ? '2px solid #3b82f6' : '1px solid #ccc',
+                    borderRadius: 4,
+                    backgroundColor: editedDefault.defaultDotSize === 16 ? '#eff6ff' : '#ffffff',
+                    cursor: 'pointer',
+                    fontSize: 13,
+                  }}
+                >
+                  Default (16px)
+                </button>
+                <button
+                  onClick={() => setEditedDefault({ ...editedDefault, defaultDotSize: 20 })}
+                  style={{
+                    padding: '6px 12px',
+                    border: editedDefault.defaultDotSize === 20 ? '2px solid #3b82f6' : '1px solid #ccc',
+                    borderRadius: 4,
+                    backgroundColor: editedDefault.defaultDotSize === 20 ? '#eff6ff' : '#ffffff',
+                    cursor: 'pointer',
+                    fontSize: 13,
+                  }}
+                >
+                  Large (20px)
+                </button>
+                <button
+                  onClick={() => setEditedDefault({ ...editedDefault, defaultDotSize: 24 })}
+                  style={{
+                    padding: '6px 12px',
+                    border: editedDefault.defaultDotSize === 24 ? '2px solid #3b82f6' : '1px solid #ccc',
+                    borderRadius: 4,
+                    backgroundColor: editedDefault.defaultDotSize === 24 ? '#eff6ff' : '#ffffff',
+                    cursor: 'pointer',
+                    fontSize: 13,
+                  }}
+                >
+                  Extra Large (24px)
+                </button>
+                <button
+                  onClick={() => {
+                    // If not already a custom value, set to a mid-range custom value
+                    if ([8, 12, 16, 20, 24].includes(editedDefault.defaultDotSize)) {
+                      setEditedDefault({ ...editedDefault, defaultDotSize: 14 });
+                    }
+                  }}
+                  style={{
+                    padding: '6px 12px',
+                    border: ![8, 12, 16, 20, 24].includes(editedDefault.defaultDotSize) ? '2px solid #3b82f6' : '1px solid #ccc',
+                    borderRadius: 4,
+                    backgroundColor: ![8, 12, 16, 20, 24].includes(editedDefault.defaultDotSize) ? '#eff6ff' : '#ffffff',
+                    cursor: 'pointer',
+                    fontSize: 13,
+                  }}
+                >
+                  Custom
+                </button>
+              </div>
+              {![8, 12, 16, 20, 24].includes(editedDefault.defaultDotSize) && (
+                <input
+                  type="number"
+                  value={editedDefault.defaultDotSize}
+                  onChange={(e) => setEditedDefault({ ...editedDefault, defaultDotSize: parseInt(e.target.value) })}
+                  style={{ width: '100%', padding: 8, fontSize: 14, marginTop: 8 }}
+                  min="4"
+                  max="48"
+                />
+              )}
+            </div>
+
+            {/* Grid Settings */}
+            <div style={{ borderTop: '2px solid #e5e7eb', marginTop: 16, paddingTop: 16 }}>
+              <h3 style={{ margin: '0 0 12px 0', fontSize: 16, fontWeight: 'bold' }}>Grid Settings</h3>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                <input
+                  type="checkbox"
+                  checked={editedGridEnabled}
+                  onChange={(e) => setEditedGridEnabled(e.target.checked)}
+                  style={{ cursor: 'pointer' }}
+                />
+                <span style={{ fontSize: 14, fontWeight: 'bold' }}>Enable Grid</span>
+              </label>
+
+              <label>
+                <div style={{ marginBottom: 4, fontSize: 14, fontWeight: 'bold' }}>Grid Size (px)</div>
+                <input
+                  type="number"
+                  value={editedGridSize}
+                  onChange={(e) => setEditedGridSize(parseInt(e.target.value) || 50)}
+                  style={{ width: '100%', padding: 8, fontSize: 14 }}
+                  min="10"
+                  max="200"
+                  disabled={!editedGridEnabled}
+                />
+              </label>
+
+              <label style={{ marginTop: 12 }}>
+                <div style={{ marginBottom: 4, fontSize: 14, fontWeight: 'bold' }}>Grid Color</div>
+                <input
+                  type="color"
+                  value={editedGridColor}
+                  onChange={(e) => setEditedGridColor(e.target.value)}
+                  style={{ width: '100%', height: 40, cursor: 'pointer' }}
+                  disabled={!editedGridEnabled}
+                />
+              </label>
+
+              <label style={{ marginTop: 12 }}>
+                <div style={{ marginBottom: 4, fontSize: 14, fontWeight: 'bold' }}>Grid Opacity</div>
+                <input
+                  type="range"
+                  value={editedGridOpacity}
+                  onChange={(e) => setEditedGridOpacity(parseFloat(e.target.value))}
+                  style={{ width: '100%', cursor: 'pointer' }}
+                  min="0"
+                  max="1"
+                  step="0.1"
+                  disabled={!editedGridEnabled}
+                />
+                <div style={{ textAlign: 'center', fontSize: 12, color: '#666' }}>
+                  {Math.round(editedGridOpacity * 100)}%
+                </div>
+              </label>
+            </div>
+
             <button
               onClick={handleResetDefaultStyle}
               style={{
@@ -391,7 +533,7 @@ function SettingsModal({ onClose }: SettingsModalProps) {
                 color: '#dc2626',
                 cursor: 'pointer',
                 fontSize: 14,
-                marginTop: 8,
+                marginTop: 16,
               }}
             >
               Reset to Defaults
@@ -512,61 +654,6 @@ function SettingsModal({ onClose }: SettingsModalProps) {
           </div>
         )}
 
-        {activeTab === 'grid' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <input
-                type="checkbox"
-                checked={editedGridEnabled}
-                onChange={(e) => setEditedGridEnabled(e.target.checked)}
-                style={{ cursor: 'pointer' }}
-              />
-              <span style={{ fontSize: 14, fontWeight: 'bold' }}>Enable Grid</span>
-            </label>
-
-            <label>
-              <div style={{ marginBottom: 4, fontSize: 14, fontWeight: 'bold' }}>Grid Size (px)</div>
-              <input
-                type="number"
-                value={editedGridSize}
-                onChange={(e) => setEditedGridSize(parseInt(e.target.value) || 50)}
-                style={{ width: '100%', padding: 8, fontSize: 14 }}
-                min="10"
-                max="200"
-                disabled={!editedGridEnabled}
-              />
-            </label>
-
-            <label>
-              <div style={{ marginBottom: 4, fontSize: 14, fontWeight: 'bold' }}>Grid Color</div>
-              <input
-                type="color"
-                value={editedGridColor}
-                onChange={(e) => setEditedGridColor(e.target.value)}
-                style={{ width: '100%', height: 40, cursor: 'pointer' }}
-                disabled={!editedGridEnabled}
-              />
-            </label>
-
-            <label>
-              <div style={{ marginBottom: 4, fontSize: 14, fontWeight: 'bold' }}>Grid Opacity</div>
-              <input
-                type="range"
-                value={editedGridOpacity}
-                onChange={(e) => setEditedGridOpacity(parseFloat(e.target.value))}
-                style={{ width: '100%', cursor: 'pointer' }}
-                min="0"
-                max="1"
-                step="0.1"
-                disabled={!editedGridEnabled}
-              />
-              <div style={{ textAlign: 'center', fontSize: 12, color: '#666' }}>
-                {Math.round(editedGridOpacity * 100)}%
-              </div>
-            </label>
-          </div>
-        )}
-
         {activeTab === 'pinnedLocations' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {editedPinnedLocations.length === 0 ? (
@@ -673,6 +760,20 @@ function SettingsModal({ onClose }: SettingsModalProps) {
                 <li><strong>Shift + double-click</strong> to create a connection dot (for routing connections)</li>
                 <li><strong>Double-click a cell</strong> to enter edit mode and add text</li>
                 <li><strong>Name, change and re-order</strong> the styles in Settings. Use different colors and formats to denote different people, countries, plotlines, etc.</li>
+                <li><strong>Pin canvas locations</strong> for quick navigation - right-click and select Pin Location, then access saved locations via the 📍 button in the bottom left</li>
+              </ul>
+            </section>
+
+            <section>
+              <h3 style={{ margin: '0 0 8px 0', fontSize: 16, borderBottom: '2px solid #3b82f6', paddingBottom: 4 }}>Tips & Tricks</h3>
+              <ul style={{ margin: '4px 0', paddingLeft: 20 }}>
+                <li>Select multiple cells by area-selecting or holding shift while clicking</li>
+                <li>Create groups using the right-click menu for easy tile management</li>
+                <li>Use connection dots to create professional-looking flowchart routing</li>
+                <li>Create custom Quick Styles in Settings for consistent designs</li>
+                <li>Align and Distribute tools help create organized layouts</li>
+                <li>Timeline cells are perfect for project planning and schedules</li>
+                <li>Add a background grid under settings for easy tile alignment</li>
               </ul>
             </section>
 
@@ -720,18 +821,6 @@ function SettingsModal({ onClose }: SettingsModalProps) {
                 <li>Connect other cells to specific timeline points</li>
               </ul>
               <p style={{ marginTop: 8, fontSize: 13, color: '#666' }}><strong>Note:</strong> Does not support negative numbers. Tick the Reverse Order box if you need the numbers to flow backwards.</p>
-            </section>
-
-            <section>
-              <h3 style={{ margin: '0 0 8px 0', fontSize: 16, borderBottom: '2px solid #3b82f6', paddingBottom: 4 }}>Tips & Tricks</h3>
-              <ul style={{ margin: '4px 0', paddingLeft: 20 }}>
-                <li>Select multiple cells by drag-selecting or Shift-clicking</li>
-                <li>Use connection dots to create professional-looking flowchart routing</li>
-                <li>Create custom Quick Styles in Settings for consistent designs</li>
-                <li>Align and Distribute tools help create organized layouts</li>
-                <li>Timeline cells are perfect for project planning and schedules</li>
-                <li>Add a background grid under settings for easy tile alignment</li>
-              </ul>
             </section>
 
             <section>

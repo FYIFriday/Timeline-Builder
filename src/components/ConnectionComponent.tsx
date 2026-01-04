@@ -226,12 +226,10 @@ function ConnectionComponent({ connection, onContextMenu }: ConnectionComponentP
         top: minY,
         width: width,
         height: height,
-        pointerEvents: 'auto',
+        pointerEvents: 'none',
         zIndex: 1,
         overflow: 'visible',
-        cursor: 'pointer',
       }}
-      onContextMenu={handleContextMenu}
     >
       {/* Invisible thicker line for easier clicking */}
       <line
@@ -240,7 +238,9 @@ function ConnectionComponent({ connection, onContextMenu }: ConnectionComponentP
         x2={x2End - minX}
         y2={y2End - minY}
         stroke="transparent"
-        strokeWidth={12}
+        strokeWidth={10}
+        style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
+        onContextMenu={handleContextMenu}
       />
       {/* Visible line */}
       <line
@@ -251,6 +251,8 @@ function ConnectionComponent({ connection, onContextMenu }: ConnectionComponentP
         stroke={connection.color}
         strokeWidth={strokeWidth}
         strokeDasharray={strokeDasharray}
+        style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
+        onContextMenu={handleContextMenu}
       />
       {/* Arrow head */}
       {connection.style === 'Arrow' && (
@@ -261,6 +263,8 @@ function ConnectionComponent({ connection, onContextMenu }: ConnectionComponentP
             ${x2End - minX - arrowSize * Math.cos(angle + Math.PI / 6)},${y2End - minY - arrowSize * Math.sin(angle + Math.PI / 6)}
           `}
           fill={connection.color}
+          style={{ pointerEvents: 'auto', cursor: 'pointer' }}
+          onContextMenu={handleContextMenu}
         />
       )}
     </svg>
