@@ -46,7 +46,7 @@ function FirstLaunchGuide({ onClose, onDontShowAgain }: FirstLaunchGuideProps) {
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h2 style={{ margin: 0, fontSize: 20 }}>Welcome to Timeline Free Plotter!</h2>
+          <h2 style={{ margin: 0, fontSize: 20 }}>Welcome to Threadsetter!</h2>
           <button
             onClick={(e) => {
               e.stopPropagation();

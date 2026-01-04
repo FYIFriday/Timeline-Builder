@@ -153,7 +153,7 @@ function App() {
               pinnedLocations: parsed.pinnedLocations || [],
             });
             // Set window title to indicate recovered work
-            await window.electron.setWindowTitle('*Recovered* - Timeline Free Plotter');
+            await window.electron.setWindowTitle('*Recovered* - Threadsetter');
             console.log('Backup loaded successfully');
           }
         } catch (error) {
@@ -180,7 +180,7 @@ function App() {
         const filePath = await window.electron.saveFile(data);
         if (filePath) {
           const filename = filePath.split('/').pop() || filePath.split('\\').pop();
-          await window.electron.setWindowTitle(`${filename} - Timeline Free Plotter`);
+          await window.electron.setWindowTitle(`${filename} - Threadsetter`);
         }
       }
     };
@@ -199,7 +199,7 @@ function App() {
         const filePath = await window.electron.saveFileAs(data);
         if (filePath) {
           const filename = filePath.split('/').pop() || filePath.split('\\').pop();
-          await window.electron.setWindowTitle(`${filename} - Timeline Free Plotter`);
+          await window.electron.setWindowTitle(`${filename} - Threadsetter`);
         }
       }
     };
@@ -219,7 +219,7 @@ function App() {
         if (window.electron) {
           const filename = await window.electron.getCurrentFilename();
           if (filename) {
-            await window.electron.setWindowTitle(`${filename} - Timeline Free Plotter`);
+            await window.electron.setWindowTitle(`${filename} - Threadsetter`);
           }
         }
       } catch (error) {

@@ -1,7 +1,7 @@
 {
   "name": "timeline-free-plotter",
   "version": "1.0.0",
-  "description": "An infinite canvas flowchart and timeline planning tool",
+  "description": "Threadsetter - An infinite canvas flowchart and timeline planning tool",
   "main": "dist/main.js",
   "scripts": {
     "start": "electron .",
@@ -16,8 +16,8 @@
     "package:win": "npm run build && electron-builder --win"
   },
   "build": {
-    "appId": "com.timeline.freeplotter",
-    "productName": "Timeline Free Plotter",
+    "appId": "com.threadsetter.app",
+    "productName": "Threadsetter",
     "directories": {
       "output": "release"
     },
