@@ -21,6 +21,9 @@ export interface Cell {
   styleName?: string; // Track which preset style this cell is using
   isTimeline?: boolean;
   timelineConfig?: TimelineConfig;
+  isDot?: boolean; // Connection point/elbow dot
+  dotShape?: 'circle' | 'square' | 'diamond'; // Shape of the dot
+  groupId?: string; // ID of the group this cell belongs to
   manuallyResized?: boolean;
 }
 

@@ -79,6 +79,7 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
   const resizeStartRef = useRef({ x: 0, y: 0, width: 0, height: 0, cellX: 0, cellY: 0 });
   const resizeDirectionRef = useRef<ResizeDirection>(null);
   const allCellsResizeStartRef = useRef<Map<string, { x: number; y: number; width: number; height: number }>>(new Map());
+  const hasDraggedRef = useRef(false); // Track if actual dragging occurred
 
   const {
     updateCell,
@@ -129,15 +130,38 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
 
   const handleCellClick = (e: React.MouseEvent) => {
     e.stopPropagation();
+
+    // If we just finished dragging, don't change selection
+    if (hasDraggedRef.current) {
+      hasDraggedRef.current = false;
+      return;
+    }
+
     if (e.shiftKey) {
       addSelectedCell(cell.id);
+    } else if (cell.groupId) {
+      // If this cell is grouped, handle group selection
+      const groupedCells = cells.filter(c => c.groupId === cell.groupId);
+      const groupedCellIds = groupedCells.map(c => c.id);
+
+      // Check if all cells in the group are already selected
+      const allGroupSelected = groupedCellIds.every(id => selectedCellIds.includes(id));
+
+      if (allGroupSelected && groupedCellIds.length === selectedCellIds.length) {
+        // If all group cells are selected and nothing else, select just this cell
+        setSelectedCells([cell.id]);
+      } else {
+        // Otherwise, select all cells in the group
+        setSelectedCells(groupedCellIds);
+      }
     } else {
       setSelectedCells([cell.id]);
     }
   };
 
   const handleContextMenu = (e: React.MouseEvent) => {
-    // If editing, don't handle context menu
+    // If editing, don't handle context menu - let it bubble to Canvas
+    // which will check for contentEditable and show native menu
     if (isEditing) {
       return;
     }
@@ -145,7 +169,14 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
     // Select the cell when right-clicking, but don't stop propagation
     // so the canvas can show the context menu
     if (!selectedCellIds.includes(cell.id)) {
-      setSelectedCells([cell.id]);
+      if (cell.groupId) {
+        // If this cell is grouped, select all cells in the group
+        const groupedCells = cells.filter(c => c.groupId === cell.groupId);
+        const groupedCellIds = groupedCells.map(c => c.id);
+        setSelectedCells(groupedCellIds);
+      } else {
+        setSelectedCells([cell.id]);
+      }
     }
   };
 
@@ -552,6 +583,9 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
   const handleMouseDown = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!isEditing) {
+      // Reset drag flag at start of mouse interaction
+      hasDraggedRef.current = false;
+
       // Ctrl/Cmd+drag to create connection
       const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
       const isConnectionModifier = isMac ? e.metaKey : e.ctrlKey;
@@ -585,6 +619,11 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
     if (isDragging) {
       const dx = (e.clientX - dragStartRef.current.x) / zoom;
       const dy = (e.clientY - dragStartRef.current.y) / zoom;
+
+      // Mark that actual dragging occurred
+      if (dx !== 0 || dy !== 0) {
+        hasDraggedRef.current = true;
+      }
 
       selectedCellIds.forEach((id) => {
         const targetCell = useStore.getState().cells.find((c) => c.id === id);
@@ -806,6 +845,53 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
     fontStyle: cell.italic ? 'italic' : 'normal',
     textDecoration: `${cell.underline ? 'underline' : ''} ${cell.strikethrough ? 'line-through' : ''}`.trim(),
   };
+
+  // Render connection dot
+  if (cell.isDot) {
+    const dotShape = cell.dotShape || 'circle';
+    const getBorderRadius = () => {
+      if (dotShape === 'circle') return '50%';
+      if (dotShape === 'square') return '0';
+      return '0'; // diamond also uses 0, but we'll handle it with transform
+    };
+
+    const getTransform = () => {
+      if (dotShape === 'diamond') {
+        return 'rotate(45deg)';
+      }
+      return undefined;
+    };
+
+    return (
+      <div
+        data-cell-id={cell.id}
+        onClick={handleCellClick}
+        onMouseDown={handleMouseDown}
+        onContextMenu={handleContextMenu}
+        onMouseEnter={() => handleMouseEnterForConnection(cell.id)}
+        onMouseLeave={handleMouseLeaveForConnection}
+        style={{
+          position: 'absolute',
+          left: cell.x,
+          top: cell.y,
+          width: cell.width,
+          height: cell.height,
+          backgroundColor: cell.backgroundColor,
+          border: isSelected
+            ? '2px solid #3b82f6'
+            : isHoveringForConnection
+            ? '2px solid #10b981'
+            : 'none',
+          borderRadius: getBorderRadius(),
+          transform: getTransform(),
+          cursor: isConnecting ? 'crosshair' : isDragging ? 'grabbing' : 'grab',
+          userSelect: 'none',
+          zIndex: 10,
+          boxSizing: 'border-box',
+        }}
+      />
+    );
+  }
 
   if (cell.isTimeline && cell.timelineConfig) {
     return (

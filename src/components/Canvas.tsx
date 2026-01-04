@@ -188,33 +188,67 @@ function Canvas() {
       const x = (e.clientX - rect.left - offsetX) / zoom;
       const y = (e.clientY - rect.top - offsetY) / zoom;
 
-      const newCell: Cell = {
-        id: `cell-${Date.now()}`,
-        x,
-        y,
-        width: 200,
-        height: 60,
-        text: 'New Cell',
-        backgroundColor: '#fffdf5',
-        textColor: '#000000',
-        borderColor: '#000000',
-        borderThickness: 0,
-        borderRadius: 0,
-        fontFamily: 'system-ui',
-        fontSize: 14,
-        bold: false,
-        italic: false,
-        underline: false,
-        strikethrough: false,
-      };
+      // Shift + double-click creates a connection dot
+      if (e.shiftKey) {
+        const dotCell: Cell = {
+          id: `cell-${Date.now()}`,
+          x: x - 8, // Center the dot on cursor
+          y: y - 8,
+          width: 16,
+          height: 16,
+          text: '',
+          backgroundColor: '#333333',
+          textColor: '#ffffff',
+          borderColor: '#333333',
+          borderThickness: 0,
+          borderRadius: 8,
+          fontFamily: 'Arial',
+          fontSize: 14,
+          bold: false,
+          italic: false,
+          underline: false,
+          strikethrough: false,
+          isDot: true,
+        };
+        addCell(dotCell);
+      } else {
+        const newCell: Cell = {
+          id: `cell-${Date.now()}`,
+          x,
+          y,
+          width: 200,
+          height: 60,
+          text: 'New Cell',
+          backgroundColor: '#fffdf5',
+          textColor: '#000000',
+          borderColor: '#000000',
+          borderThickness: 0,
+          borderRadius: 0,
+          fontFamily: 'system-ui',
+          fontSize: 14,
+          bold: false,
+          italic: false,
+          underline: false,
+          strikethrough: false,
+        };
 
-      addCell(newCell);
+        addCell(newCell);
+      }
     }
   };
 
   const [timelinePosition, setTimelinePosition] = useState<{ x: number; y: number }>({ x: 100, y: 100 });
 
   const handleContextMenu = (e: React.MouseEvent) => {
+    // Check if we're right-clicking on a contentEditable element (cell in edit mode)
+    const target = e.target as HTMLElement;
+    const isContentEditable = target.isContentEditable || target.closest('[contenteditable="true"]');
+
+    // If clicking on editable content, don't prevent default - allow native spell check menu
+    if (isContentEditable) {
+      return;
+    }
+
     e.preventDefault();
 
     if (canvasRef.current) {
@@ -341,6 +375,9 @@ function Canvas() {
             }
           });
 
+          // Select the newly pasted cells
+          setSelectedCells(newCells.map((cell) => cell.id));
+
           saveHistory();
         }
       }
@@ -387,6 +424,9 @@ function Canvas() {
               });
             }
           });
+
+          // Select the newly pasted cells
+          setSelectedCells(newCells.map((cell) => cell.id));
 
           saveHistory();
         }

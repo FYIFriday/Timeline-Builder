@@ -26,6 +26,8 @@ interface StoreState extends CanvasState {
   redo: () => void;
   loadState: (state: Partial<CanvasState>) => void;
   resetState: () => void;
+  groupCells: (cellIds: string[]) => void;
+  ungroupCells: (cellIds: string[]) => void;
 }
 
 const DEFAULT_CELL_COLOR = '#fffdf5';
@@ -276,6 +278,35 @@ export const useStore = create<StoreState>((set, get) => ({
 
   resetState: () => {
     set({ ...initialState });
+  },
+
+  groupCells: (cellIds) => {
+    if (cellIds.length < 2) return; // Need at least 2 cells to group
+
+    set((state) => {
+      const groupId = `group-${Date.now()}`;
+      const newState = {
+        ...state,
+        cells: state.cells.map((cell) =>
+          cellIds.includes(cell.id) ? { ...cell, groupId } : cell
+        ),
+      };
+      saveHistoryHelper(newState);
+      return newState;
+    });
+  },
+
+  ungroupCells: (cellIds) => {
+    set((state) => {
+      const newState = {
+        ...state,
+        cells: state.cells.map((cell) =>
+          cellIds.includes(cell.id) ? { ...cell, groupId: undefined } : cell
+        ),
+      };
+      saveHistoryHelper(newState);
+      return newState;
+    });
   },
 }));
 

@@ -34,6 +34,8 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal }: ContextMenuProps) {
     deleteCells,
     saveHistory,
     addColorPreset,
+    groupCells,
+    ungroupCells,
   } = useStore();
 
   // Check if there are connections between selected cells
@@ -41,6 +43,21 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal }: ContextMenuProps) {
     (conn) =>
       selectedCellIds.includes(conn.fromCellId) && selectedCellIds.includes(conn.toCellId)
   );
+
+  // Check if exactly one dot is selected
+  const selectedDot = selectedCellIds.length === 1
+    ? cells.find(c => c.id === selectedCellIds[0] && c.isDot)
+    : undefined;
+  const isDotSelected = !!selectedDot;
+
+  // Check if selected cells are grouped
+  const selectedCells = cells.filter(c => selectedCellIds.includes(c.id));
+  const allSelectedHaveSameGroup = selectedCells.length > 0 &&
+    selectedCells.every(c => c.groupId && c.groupId === selectedCells[0].groupId);
+  const someSelectedAreGrouped = selectedCells.some(c => c.groupId);
+
+  // Check if ONLY dots are selected (one or more)
+  const onlyDotsSelected = selectedCells.length > 0 && selectedCells.every(c => c.isDot);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -333,16 +350,77 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal }: ContextMenuProps) {
         case 'right':
           updates.x = referenceCell.x + referenceCell.width - cell.width;
           break;
-        case 'vcenter':
+        case 'hcenter':
+          // Horizontal center = align on a horizontal line (align y-coordinates)
           updates.y = referenceCell.y + (referenceCell.height / 2) - (cell.height / 2);
           break;
-        case 'hcenter':
+        case 'vcenter':
+          // Vertical center = align on a vertical line (align x-coordinates)
           updates.x = referenceCell.x + (referenceCell.width / 2) - (cell.width / 2);
           break;
       }
 
       updateCell(id, updates);
     });
+
+    saveHistory();
+    onClose();
+  };
+
+  const handleDistribute = (direction: 'horizontal' | 'vertical') => {
+    if (selectedCellIds.length < 3) return;
+
+    const selectedCells = selectedCellIds
+      .map((id) => cells.find((c) => c.id === id))
+      .filter((c): c is Cell => c !== undefined);
+
+    if (direction === 'horizontal') {
+      // Sort by x position (left edge)
+      const sorted = [...selectedCells].sort((a, b) => a.x - b.x);
+
+      // Leftmost and rightmost stay in place
+      const leftmost = sorted[0];
+      const rightmost = sorted[sorted.length - 1];
+
+      // Calculate total span between leftmost and rightmost centers
+      const leftCenter = leftmost.x + leftmost.width / 2;
+      const rightCenter = rightmost.x + rightmost.width / 2;
+      const totalSpan = rightCenter - leftCenter;
+
+      // Calculate spacing between centers
+      const spacing = totalSpan / (sorted.length - 1);
+
+      // Update positions of cells in between
+      for (let i = 1; i < sorted.length - 1; i++) {
+        const cell = sorted[i];
+        const newCenterX = leftCenter + spacing * i;
+        const newX = newCenterX - cell.width / 2;
+        updateCell(cell.id, { x: newX });
+      }
+    } else {
+      // Sort by y position (top edge)
+      const sorted = [...selectedCells].sort((a, b) => a.y - b.y);
+
+      // Topmost and bottommost stay in place
+      const topmost = sorted[0];
+      const bottommost = sorted[sorted.length - 1];
+
+      // Calculate total span between topmost and bottommost centers
+      const topCenter = topmost.y + topmost.height / 2;
+      const bottomCenter = bottommost.y + bottommost.height / 2;
+      const totalSpan = bottomCenter - topCenter;
+
+      // Calculate spacing between centers
+      const spacing = totalSpan / (sorted.length - 1);
+
+      // Update positions of cells in between
+      for (let i = 1; i < sorted.length - 1; i++) {
+        const cell = sorted[i];
+        const newCenterY = topCenter + spacing * i;
+        const newY = newCenterY - cell.height / 2;
+        updateCell(cell.id, { y: newY });
+      }
+    }
 
     saveHistory();
     onClose();
@@ -379,6 +457,111 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal }: ContextMenuProps) {
     onClose();
   };
 
+  const handleDotColor = () => {
+    if (selectedCells.length === 0) return;
+    const input = document.createElement('input');
+    input.type = 'color';
+    // Use the first selected dot's color as default
+    const firstDot = selectedCells.find(c => c.isDot);
+    if (firstDot) {
+      input.value = firstDot.backgroundColor;
+    }
+    input.click();
+    input.onchange = (e) => {
+      const color = (e.target as HTMLInputElement).value;
+      selectedCellIds.forEach((id) => {
+        const cell = cells.find(c => c.id === id);
+        if (cell?.isDot) {
+          updateCell(id, { backgroundColor: color });
+        }
+      });
+      saveHistory();
+    };
+    onClose();
+  };
+
+  const handleDotShape = (shape: 'circle' | 'square' | 'diamond') => {
+    if (selectedCells.length === 0) return;
+    selectedCellIds.forEach((id) => {
+      const cell = cells.find(c => c.id === id);
+      if (cell?.isDot) {
+        updateCell(id, { dotShape: shape });
+      }
+    });
+    saveHistory();
+    onClose();
+  };
+
+  const handleDotSize = (size: number) => {
+    if (selectedCells.length === 0) return;
+    selectedCellIds.forEach((id) => {
+      const cell = cells.find(c => c.id === id);
+      if (cell?.isDot) {
+        updateCell(id, { width: size, height: size });
+      }
+    });
+    saveHistory();
+    onClose();
+  };
+
+  const handleGroupObjects = () => {
+    if (selectedCellIds.length < 2) return;
+    groupCells(selectedCellIds);
+    onClose();
+  };
+
+  const handleUngroupObjects = () => {
+    if (selectedCellIds.length === 0) return;
+    ungroupCells(selectedCellIds);
+    onClose();
+  };
+
+  // Simplified menu for dots only
+  if (onlyDotsSelected) {
+    return (
+      <div
+        ref={menuRef}
+        style={{
+          position: 'fixed',
+          left: position.x,
+          top: position.y,
+          backgroundColor: 'white',
+          border: '1px solid #ccc',
+          borderRadius: 4,
+          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+          zIndex: 10000,
+          minWidth: 200,
+        }}
+      >
+        <MenuItem onClick={handleDotColor}>Color</MenuItem>
+        <MenuSubmenu label="Shape">
+          <MenuItem onClick={() => handleDotShape('circle')}>Circle</MenuItem>
+          <MenuItem onClick={() => handleDotShape('square')}>Square</MenuItem>
+          <MenuItem onClick={() => handleDotShape('diamond')}>Diamond</MenuItem>
+        </MenuSubmenu>
+        <MenuSubmenu label="Size">
+          <MenuItem onClick={() => handleDotSize(8)}>Small (8px)</MenuItem>
+          <MenuItem onClick={() => handleDotSize(12)}>Medium (12px)</MenuItem>
+          <MenuItem onClick={() => handleDotSize(16)}>Default (16px)</MenuItem>
+          <MenuItem onClick={() => handleDotSize(20)}>Large (20px)</MenuItem>
+          <MenuItem onClick={() => handleDotSize(24)}>Extra Large (24px)</MenuItem>
+        </MenuSubmenu>
+        <MenuDivider />
+        <MenuItem onClick={handleGroupObjects} disabled={selectedCellIds.length < 2}>
+          Group Objects
+        </MenuItem>
+        <MenuItem onClick={handleUngroupObjects} disabled={!someSelectedAreGrouped}>
+          Ungroup Objects
+        </MenuItem>
+        <MenuDivider />
+        <MenuItem onClick={handleDelete} disabled={selectedCellIds.length === 0}>
+          Delete
+        </MenuItem>
+      </div>
+    );
+  }
+
+  // Full menu for regular cells
   return (
     <div
       ref={menuRef}
@@ -419,6 +602,34 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal }: ContextMenuProps) {
         Add to Styles
       </MenuItem>
       <MenuItem onClick={onOpenTimelineModal}>Timeline cell</MenuItem>
+      <MenuItem onClick={() => {
+        const { addCell } = useStore.getState();
+        const worldX = (position.x - useStore.getState().offsetX) / useStore.getState().zoom;
+        const worldY = (position.y - useStore.getState().offsetY) / useStore.getState().zoom;
+
+        addCell({
+          id: `cell-${Date.now()}`,
+          x: worldX,
+          y: worldY,
+          width: 16,
+          height: 16,
+          text: '',
+          backgroundColor: '#333333',
+          textColor: '#ffffff',
+          borderColor: '#333333',
+          borderThickness: 0,
+          borderRadius: 8,
+          fontFamily: 'Arial',
+          fontSize: 14,
+          bold: false,
+          italic: false,
+          underline: false,
+          strikethrough: false,
+          isDot: true,
+        });
+        useStore.getState().saveHistory();
+        onClose();
+      }}>Connection dot</MenuItem>
       <MenuDivider />
       <MenuSubmenu label="Connection style" disabled={!hasConnectionsBetweenSelected}>
         <MenuItem onClick={() => handleConnectionStyle('Dotted')} disabled={!hasConnectionsBetweenSelected}>Dotted</MenuItem>
@@ -470,6 +681,17 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal }: ContextMenuProps) {
         <MenuItem onClick={() => handleAlign('vcenter')} disabled={selectedCellIds.length < 2}>Vertical Center</MenuItem>
         <MenuItem onClick={() => handleAlign('bottom')} disabled={selectedCellIds.length < 2}>Bottom Edge</MenuItem>
       </MenuSubmenu>
+      <MenuSubmenu label="Distribute" disabled={selectedCellIds.length < 3}>
+        <MenuItem onClick={() => handleDistribute('horizontal')} disabled={selectedCellIds.length < 3}>Horizontally</MenuItem>
+        <MenuItem onClick={() => handleDistribute('vertical')} disabled={selectedCellIds.length < 3}>Vertically</MenuItem>
+      </MenuSubmenu>
+      <MenuDivider />
+      <MenuItem onClick={handleGroupObjects} disabled={selectedCellIds.length < 2}>
+        Group Objects
+      </MenuItem>
+      <MenuItem onClick={handleUngroupObjects} disabled={!someSelectedAreGrouped}>
+        Ungroup Objects
+      </MenuItem>
       <MenuDivider />
       <MenuItem onClick={handleDelete} disabled={selectedCellIds.length === 0}>
         Delete

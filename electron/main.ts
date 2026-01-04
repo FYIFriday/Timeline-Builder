@@ -13,6 +13,7 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      spellcheck: true,
     },
   });
 
@@ -22,6 +23,39 @@ function createWindow() {
   } else {
     mainWindow.loadFile(path.join(__dirname, 'renderer/index.html'));
   }
+
+  // Enable spell checker
+  mainWindow.webContents.session.setSpellCheckerLanguages(['en-US']);
+
+  // Handle context menu for spell checking
+  mainWindow.webContents.on('context-menu', (event, params) => {
+    const { misspelledWord, dictionarySuggestions, isEditable } = params;
+
+    // Only show spell check menu when in editable content with misspelled word
+    if (isEditable && misspelledWord) {
+      const menuTemplate: any[] = [];
+
+      // Add spelling suggestions
+      if (dictionarySuggestions.length > 0) {
+        dictionarySuggestions.slice(0, 5).forEach((suggestion) => {
+          menuTemplate.push({
+            label: suggestion,
+            click: () => mainWindow?.webContents.replaceMisspelling(suggestion),
+          });
+        });
+        menuTemplate.push({ type: 'separator' });
+      }
+
+      // Add "Add to dictionary" option
+      menuTemplate.push({
+        label: 'Add to Dictionary',
+        click: () => mainWindow?.webContents.session.addWordToSpellCheckerDictionary(misspelledWord),
+      });
+
+      const contextMenu = Menu.buildFromTemplate(menuTemplate);
+      contextMenu.popup();
+    }
+  });
 
   createMenu();
 

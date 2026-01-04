@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Canvas from './components/Canvas';
+import FirstLaunchGuide from './components/FirstLaunchGuide';
 import { useStore } from './store';
 import { Cell, Connection } from './types';
 
@@ -124,6 +125,15 @@ declare global {
 
 function App() {
   const canvasContainerRef = useRef<HTMLDivElement>(null);
+  const [showFirstLaunchGuide, setShowFirstLaunchGuide] = useState(false);
+
+  // Check if user has seen the guide before
+  useEffect(() => {
+    const hasSeenGuide = localStorage.getItem('hasSeenGuide');
+    if (!hasSeenGuide) {
+      setShowFirstLaunchGuide(true);
+    }
+  }, []);
 
   // Load backup on startup if available
   useEffect(() => {
@@ -863,9 +873,23 @@ function App() {
     };
   }, []); // Empty dependency array - only run once on mount
 
+  const handleCloseFirstLaunchGuide = () => {
+    setShowFirstLaunchGuide(false);
+  };
+
+  const handleDontShowAgain = () => {
+    localStorage.setItem('hasSeenGuide', 'true');
+  };
+
   return (
     <div ref={canvasContainerRef} style={{ width: '100%', height: '100%' }}>
       <Canvas />
+      {showFirstLaunchGuide && (
+        <FirstLaunchGuide
+          onClose={handleCloseFirstLaunchGuide}
+          onDontShowAgain={handleDontShowAgain}
+        />
+      )}
     </div>
   );
 }
