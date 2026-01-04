@@ -10,12 +10,36 @@ contextBridge.exposeInMainWorld('electron', {
   exportJson: (data: string) => ipcRenderer.invoke('export-json', data),
   setWindowTitle: (title: string) => ipcRenderer.invoke('set-window-title', title),
   getCurrentFilename: () => ipcRenderer.invoke('get-current-filename'),
-  onMenuNew: (callback: () => void) => ipcRenderer.on('menu-new', callback),
-  onMenuSave: (callback: () => void) => ipcRenderer.on('menu-save', callback),
-  onMenuSaveAs: (callback: () => void) => ipcRenderer.on('menu-save-as', callback),
-  onMenuExportPng: (callback: () => void) => ipcRenderer.on('menu-export-png', callback),
-  onMenuExportPdf: (callback: () => void) => ipcRenderer.on('menu-export-pdf', callback),
-  onMenuExportJson: (callback: () => void) => ipcRenderer.on('menu-export-json', callback),
-  onMenuSearch: (callback: () => void) => ipcRenderer.on('menu-search', callback),
-  onFileOpened: (callback: (data: string) => void) => ipcRenderer.on('file-opened', (_, data) => callback(data)),
+  onMenuNew: (callback: () => void) => {
+    ipcRenderer.removeAllListeners('menu-new');
+    ipcRenderer.on('menu-new', callback);
+  },
+  onMenuSave: (callback: () => void) => {
+    ipcRenderer.removeAllListeners('menu-save');
+    ipcRenderer.on('menu-save', callback);
+  },
+  onMenuSaveAs: (callback: () => void) => {
+    ipcRenderer.removeAllListeners('menu-save-as');
+    ipcRenderer.on('menu-save-as', callback);
+  },
+  onMenuExportPng: (callback: () => void) => {
+    ipcRenderer.removeAllListeners('menu-export-png');
+    ipcRenderer.on('menu-export-png', callback);
+  },
+  onMenuExportPdf: (callback: () => void) => {
+    ipcRenderer.removeAllListeners('menu-export-pdf');
+    ipcRenderer.on('menu-export-pdf', callback);
+  },
+  onMenuExportJson: (callback: () => void) => {
+    ipcRenderer.removeAllListeners('menu-export-json');
+    ipcRenderer.on('menu-export-json', callback);
+  },
+  onMenuSearch: (callback: () => void) => {
+    ipcRenderer.removeAllListeners('menu-search');
+    ipcRenderer.on('menu-search', callback);
+  },
+  onFileOpened: (callback: (data: string) => void) => {
+    ipcRenderer.removeAllListeners('file-opened');
+    ipcRenderer.on('file-opened', (_, data) => callback(data));
+  },
 });

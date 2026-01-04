@@ -546,9 +546,15 @@ function MenuSubmenu({ label, children, disabled = false }: { label: string; chi
 
       // Check if submenu goes off bottom edge
       if (submenuRect.bottom > viewportHeight - margin) {
-        // Adjust vertical position
-        const newTop = Math.max(0, viewportHeight - margin - submenuRect.height - submenuRect.top + submenuRect.top);
-        position.top = -(submenuRect.height - 40); // Approximate item height
+        // Calculate how much we need to shift up
+        const overflow = submenuRect.bottom - (viewportHeight - margin);
+        position.top = -overflow;
+
+        // Make sure we don't go off the top
+        const wouldBeTop = submenuRect.top - overflow;
+        if (wouldBeTop < margin) {
+          position.top = -(submenuRect.top - margin);
+        }
       }
 
       setSubmenuPosition(position);

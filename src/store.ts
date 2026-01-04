@@ -153,7 +153,7 @@ export const useStore = create<StoreState>((set, get) => ({
       const newState = {
         ...state,
         connections: state.connections.filter(
-          (conn) => !idsSet.has(conn.fromCellId) && !idsSet.has(conn.toCellId)
+          (conn) => !idsSet.has(conn.fromCellId) || !idsSet.has(conn.toCellId)
         ),
       };
       saveHistoryHelper(newState);

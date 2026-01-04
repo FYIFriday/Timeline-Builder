@@ -58,6 +58,7 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
   const [editHtml, setEditHtml] = useState('');
   const [currentFontSize, setCurrentFontSize] = useState(cell.fontSize);
   const [fontSizeInput, setFontSizeInput] = useState(cell.fontSize.toString());
+  const [currentAlignment, setCurrentAlignment] = useState<'left' | 'center' | 'right' | 'justify'>('center');
   const editableRef = useRef<HTMLDivElement>(null);
   const fontSizeInputRef = useRef<HTMLInputElement>(null);
   const savedSelectionRef = useRef<Range | null>(null);
@@ -106,11 +107,16 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
       sel?.removeAllRanges();
       sel?.addRange(range);
 
-      // Listen for selection changes to update font size display
+      // Listen for selection changes to update font size display and alignment
       const handleSelectionChange = () => {
         if (document.activeElement === editableRef.current || editableRef.current?.contains(document.activeElement)) {
           const detectedSize = getSelectionFontSize();
           setFontSizeInput(detectedSize);
+
+          const detectedAlignment = getCurrentAlignment();
+          if (detectedAlignment) {
+            setCurrentAlignment(detectedAlignment);
+          }
         }
       };
 
@@ -401,8 +407,55 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
   };
 
   const applyAlignment = (alignment: 'left' | 'center' | 'right' | 'justify') => {
-    updateCell(cell.id, { textAlign: alignment });
-    editableRef.current?.focus();
+    if (!editableRef.current) return;
+    editableRef.current.focus();
+
+    const commandMap = {
+      'left': 'justifyLeft',
+      'center': 'justifyCenter',
+      'right': 'justifyRight',
+      'justify': 'justifyFull'
+    };
+
+    document.execCommand(commandMap[alignment], false);
+  };
+
+  const getCurrentAlignment = (): 'left' | 'center' | 'right' | 'justify' | null => {
+    if (!editableRef.current || !isEditing) return cell.textAlign || 'center';
+
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return cell.textAlign || 'center';
+
+    // Get the element at the current selection
+    let node = sel.anchorNode;
+    if (!node) return cell.textAlign || 'center';
+
+    // If it's a text node, get its parent element
+    let element = node.nodeType === Node.TEXT_NODE ? node.parentElement : node as HTMLElement;
+
+    // Walk up to find an element with text-align or alignment attribute
+    while (element && element !== editableRef.current) {
+      const textAlign = window.getComputedStyle(element).textAlign;
+      const align = element.getAttribute('align');
+
+      if (align) {
+        if (align === 'left') return 'left';
+        if (align === 'center') return 'center';
+        if (align === 'right') return 'right';
+        if (align === 'justify') return 'justify';
+      }
+
+      if (textAlign && textAlign !== 'start') {
+        if (textAlign === 'left') return 'left';
+        if (textAlign === 'center') return 'center';
+        if (textAlign === 'right') return 'right';
+        if (textAlign === 'justify') return 'justify';
+      }
+
+      element = element.parentElement;
+    }
+
+    return cell.textAlign || 'center';
   };
 
   const changeFontSize = (delta: number) => {
@@ -801,7 +854,7 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
           userSelect: 'none',
           display: 'flex',
           alignItems: isEditing ? 'flex-start' : 'center',
-          justifyContent: 'center',
+          justifyContent: isEditing ? 'flex-start' : 'center',
           zIndex: 10,
           boxSizing: 'border-box',
           ...fontStyle,
@@ -990,7 +1043,7 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
                 padding: '4px 8px',
                 border: '1px solid #ccc',
                 borderRadius: 3,
-                backgroundColor: cell.textAlign === 'left' ? '#e0e0e0' : '#fff',
+                backgroundColor: currentAlignment === 'left' ? '#e0e0e0' : '#fff',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
@@ -1009,7 +1062,7 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
                 padding: '4px 8px',
                 border: '1px solid #ccc',
                 borderRadius: 3,
-                backgroundColor: cell.textAlign === 'center' || !cell.textAlign ? '#e0e0e0' : '#fff',
+                backgroundColor: currentAlignment === 'center' ? '#e0e0e0' : '#fff',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
@@ -1028,7 +1081,7 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
                 padding: '4px 8px',
                 border: '1px solid #ccc',
                 borderRadius: 3,
-                backgroundColor: cell.textAlign === 'right' ? '#e0e0e0' : '#fff',
+                backgroundColor: currentAlignment === 'right' ? '#e0e0e0' : '#fff',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
@@ -1047,7 +1100,7 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
                 padding: '4px 8px',
                 border: '1px solid #ccc',
                 borderRadius: 3,
-                backgroundColor: cell.textAlign === 'justify' ? '#e0e0e0' : '#fff',
+                backgroundColor: currentAlignment === 'justify' ? '#e0e0e0' : '#fff',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
@@ -1079,7 +1132,6 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
               whiteSpace: 'pre-wrap',
               wordBreak: 'break-word',
               cursor: 'text',
-              textAlign: cell.textAlign || 'center',
               ...fontStyle,
             }}
           />
@@ -1092,7 +1144,6 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
             overflow: 'hidden',
             whiteSpace: 'pre-wrap',
             wordBreak: 'break-word',
-            textAlign: cell.textAlign || 'center',
           }}
           dangerouslySetInnerHTML={{
             __html: cell.htmlContent || markdownToHtml(cell.text || '')
