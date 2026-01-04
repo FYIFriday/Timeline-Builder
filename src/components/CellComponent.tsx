@@ -437,6 +437,18 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
     document.execCommand(command, false);
   };
 
+  const applyTextColor = (color: string) => {
+    if (!editableRef.current) return;
+    editableRef.current.focus();
+    document.execCommand('foreColor', false, color);
+  };
+
+  const applyBackgroundColor = (color: string) => {
+    if (!editableRef.current) return;
+    editableRef.current.focus();
+    document.execCommand('backColor', false, color);
+  };
+
   const applyAlignment = (alignment: 'left' | 'center' | 'right' | 'justify') => {
     if (!editableRef.current) return;
     editableRef.current.focus();
@@ -1032,6 +1044,110 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
               title="Strikethrough (Ctrl+Shift+S)"
             >
               S
+            </button>
+            <div style={{ width: 1, backgroundColor: '#ccc' }} />
+            <button
+              onMouseDown={(e) => {
+                e.preventDefault();
+                const input = document.createElement('input');
+                input.type = 'color';
+                input.value = '#000000';
+                input.style.position = 'absolute';
+                input.style.opacity = '0';
+                input.style.pointerEvents = 'none';
+                document.body.appendChild(input);
+
+                let hasChanged = false;
+                input.onchange = (event) => {
+                  hasChanged = true;
+                  const color = (event.target as HTMLInputElement).value;
+                  applyTextColor(color);
+                  setTimeout(() => {
+                    if (document.body.contains(input)) {
+                      document.body.removeChild(input);
+                    }
+                  }, 50);
+                };
+
+                // Also handle when color picker is closed without selecting
+                input.onblur = () => {
+                  setTimeout(() => {
+                    if (document.body.contains(input)) {
+                      document.body.removeChild(input);
+                    }
+                  }, 100);
+                };
+
+                // Trigger click after a brief delay to ensure it's in the DOM
+                setTimeout(() => input.click(), 10);
+              }}
+              style={{
+                padding: '4px 8px',
+                border: '1px solid #ccc',
+                borderRadius: 3,
+                backgroundColor: '#fff',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: 'bold',
+              }}
+              title="Text Color"
+            >
+              A
+            </button>
+            <button
+              onMouseDown={(e) => {
+                e.preventDefault();
+                const input = document.createElement('input');
+                input.type = 'color';
+                input.value = '#ffff00';
+                input.style.position = 'absolute';
+                input.style.opacity = '0';
+                input.style.pointerEvents = 'none';
+                document.body.appendChild(input);
+
+                let hasChanged = false;
+                input.onchange = (event) => {
+                  hasChanged = true;
+                  const color = (event.target as HTMLInputElement).value;
+                  applyBackgroundColor(color);
+                  setTimeout(() => {
+                    if (document.body.contains(input)) {
+                      document.body.removeChild(input);
+                    }
+                  }, 50);
+                };
+
+                // Also handle when color picker is closed without selecting
+                input.onblur = () => {
+                  setTimeout(() => {
+                    if (document.body.contains(input)) {
+                      document.body.removeChild(input);
+                    }
+                  }, 100);
+                };
+
+                // Trigger click after a brief delay to ensure it's in the DOM
+                setTimeout(() => input.click(), 10);
+              }}
+              style={{
+                padding: '4px 8px',
+                border: '1px solid #ccc',
+                borderRadius: 3,
+                backgroundColor: '#fff',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: 'bold',
+                position: 'relative',
+              }}
+              title="Text Highlight"
+            >
+              <span style={{
+                backgroundColor: '#ffff00',
+                padding: '2px 4px',
+                borderRadius: 2,
+              }}>
+                H
+              </span>
             </button>
             <div style={{ width: 1, backgroundColor: '#ccc' }} />
             <button

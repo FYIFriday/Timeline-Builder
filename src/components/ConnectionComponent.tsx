@@ -122,7 +122,7 @@ function ConnectionComponent({ connection, onContextMenu }: ConnectionComponentP
       ? '8 4'
       : 'none';
 
-  const strokeWidth = connection.style === 'Bold' ? 3 : connection.style === 'Dashed' ? 2 : 1;
+  const strokeWidth = connection.strokeWidth ?? (connection.style === 'Bold' ? 3 : connection.style === 'Dashed' ? 2 : 1);
 
   // For Arrow style, calculate intersection with destination cell border
   let x2End = x2;

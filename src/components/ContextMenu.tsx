@@ -1,20 +1,17 @@
 import { useState, useEffect, useRef } from 'react';
 import { useStore } from '../store';
-import { Connection } from '../types';
+import { Connection, Cell } from '../types';
 
 interface ContextMenuProps {
   x: number;
   y: number;
   onClose: () => void;
   onOpenTimelineModal: () => void;
+  onPinLocation: () => void;
 }
 
-function ContextMenu({ x, y, onClose, onOpenTimelineModal }: ContextMenuProps) {
+function ContextMenu({ x, y, onClose, onOpenTimelineModal, onPinLocation }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
-  const [showColorSubmenu, setShowColorSubmenu] = useState(false);
-  const [showFontSubmenu, setShowFontSubmenu] = useState(false);
-  const [showBorderSubmenu, setShowBorderSubmenu] = useState(false);
-  const [showConnectionStyleSubmenu, setShowConnectionStyleSubmenu] = useState(false);
   const [position, setPosition] = useState({ x, y });
 
   // Detect platform for keyboard shortcuts
@@ -36,6 +33,11 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal }: ContextMenuProps) {
     addColorPreset,
     groupCells,
     ungroupCells,
+    addCell,
+    offsetX,
+    offsetY,
+    zoom,
+    defaultCellStyle,
   } = useStore();
 
   // Check if there are connections between selected cells
@@ -44,20 +46,15 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal }: ContextMenuProps) {
       selectedCellIds.includes(conn.fromCellId) && selectedCellIds.includes(conn.toCellId)
   );
 
-  // Check if exactly one dot is selected
-  const selectedDot = selectedCellIds.length === 1
-    ? cells.find(c => c.id === selectedCellIds[0] && c.isDot)
-    : undefined;
-  const isDotSelected = !!selectedDot;
-
   // Check if selected cells are grouped
   const selectedCells = cells.filter(c => selectedCellIds.includes(c.id));
-  const allSelectedHaveSameGroup = selectedCells.length > 0 &&
-    selectedCells.every(c => c.groupId && c.groupId === selectedCells[0].groupId);
   const someSelectedAreGrouped = selectedCells.some(c => c.groupId);
 
   // Check if ONLY dots are selected (one or more)
   const onlyDotsSelected = selectedCells.length > 0 && selectedCells.every(c => c.isDot);
+
+  // Check if any cells are selected
+  const hasCellsSelected = selectedCellIds.length > 0;
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -76,32 +73,26 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal }: ContextMenuProps) {
       const menuRect = menuRef.current.getBoundingClientRect();
       const viewportWidth = window.innerWidth;
       const viewportHeight = window.innerHeight;
-      const margin = 10; // Margin from edges
+      const margin = 10;
 
       let newX = x;
       let newY = y;
 
-      // Check if menu goes off right edge
       if (x + menuRect.width > viewportWidth - margin) {
         newX = Math.max(margin, viewportWidth - menuRect.width - margin);
       }
 
-      // Check if menu goes off left edge
       if (newX < margin) {
         newX = margin;
       }
 
-      // Check if menu goes off bottom edge
       if (y + menuRect.height > viewportHeight - margin) {
-        // Try positioning above cursor first
         newY = y - menuRect.height;
-        // If that would go off top, clamp to viewport
         if (newY < margin) {
           newY = Math.max(margin, viewportHeight - menuRect.height - margin);
         }
       }
 
-      // Check if menu goes off top edge
       if (newY < margin) {
         newY = margin;
       }
@@ -112,39 +103,35 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal }: ContextMenuProps) {
     }
   }, [x, y, position.x, position.y]);
 
-  const handleAddConnection = () => {
+  const handleAddConnection = (style: 'Dashed' | 'Solid' | 'Arrow') => {
     if (selectedCellIds.length < 2) return;
 
-    for (let i = 0; i < selectedCellIds.length - 1; i++) {
-      for (let j = i + 1; j < selectedCellIds.length; j++) {
+    if (style === 'Arrow') {
+      // First cell is origin, all others are destinations
+      const originId = selectedCellIds[0];
+      for (let i = 1; i < selectedCellIds.length; i++) {
         const connection: Connection = {
-          id: `conn-${Date.now()}-${i}-${j}`,
-          fromCellId: selectedCellIds[i],
-          toCellId: selectedCellIds[j],
+          id: `conn-${Date.now()}-arrow-${i}`,
+          fromCellId: originId,
+          toCellId: selectedCellIds[i],
           color: '#000000',
-          style: 'Dashed',
+          style: 'Arrow',
         };
         addConnection(connection);
       }
-    }
-    saveHistory();
-    onClose();
-  };
-
-  const handleAddArrowConnection = () => {
-    if (selectedCellIds.length < 2) return;
-
-    // First cell is origin, all others are destinations
-    const originId = selectedCellIds[0];
-    for (let i = 1; i < selectedCellIds.length; i++) {
-      const connection: Connection = {
-        id: `conn-${Date.now()}-arrow-${i}`,
-        fromCellId: originId,
-        toCellId: selectedCellIds[i],
-        color: '#000000',
-        style: 'Arrow',
-      };
-      addConnection(connection);
+    } else {
+      for (let i = 0; i < selectedCellIds.length - 1; i++) {
+        for (let j = i + 1; j < selectedCellIds.length; j++) {
+          const connection: Connection = {
+            id: `conn-${Date.now()}-${i}-${j}`,
+            fromCellId: selectedCellIds[i],
+            toCellId: selectedCellIds[j],
+            color: '#000000',
+            style,
+          };
+          addConnection(connection);
+        }
+      }
     }
     saveHistory();
     onClose();
@@ -163,9 +150,39 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal }: ContextMenuProps) {
         borderThickness: preset.borderThickness ?? 1,
         borderColor: preset.borderColor || preset.textColor,
         borderRadius: preset.borderRadius ?? 8,
-        styleName: preset.name, // Track which style is applied
+        styleName: preset.name,
       });
     });
+    saveHistory();
+    onClose();
+  };
+
+  const handleCreateCell = (preset?: typeof colorPresets[0]) => {
+    const worldX = (position.x - offsetX) / zoom;
+    const worldY = (position.y - offsetY) / zoom;
+
+    const newCell: Cell = {
+      id: `cell-${Date.now()}`,
+      x: worldX,
+      y: worldY,
+      width: 200,
+      height: 60,
+      text: 'New Cell',
+      backgroundColor: preset?.bgColor || '#fffdf5',
+      textColor: preset?.textColor || '#000000',
+      borderColor: preset?.borderColor || preset?.textColor || '#000000',
+      borderThickness: preset?.borderThickness ?? 0,
+      borderRadius: preset?.borderRadius ?? 0,
+      fontFamily: defaultCellStyle.fontFamily,
+      fontSize: defaultCellStyle.fontSize,
+      bold: false,
+      italic: false,
+      underline: false,
+      strikethrough: false,
+      styleName: preset?.name,
+    };
+
+    addCell(newCell);
     saveHistory();
     onClose();
   };
@@ -177,10 +194,8 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal }: ContextMenuProps) {
         selectedCellIds.includes(conn.toCellId)
     );
     selectedConnections.forEach((conn) => {
-      // For arrow style, ensure arrow points away from first selected cell
       if (style === 'Arrow' && selectedCellIds.length > 0) {
         const firstSelectedId = selectedCellIds[0];
-        // If the connection is backwards (toCellId is the first selected), swap it
         if (conn.toCellId === firstSelectedId && selectedCellIds.includes(conn.fromCellId)) {
           updateConnection(conn.id, {
             fromCellId: conn.toCellId,
@@ -200,7 +215,20 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal }: ContextMenuProps) {
     onClose();
   };
 
-  const handleColorPicker = (type: 'background' | 'text' | 'connection' | 'canvas') => {
+  const handleConnectionWeight = (weight: number) => {
+    const selectedConnections = connections.filter(
+      (conn) =>
+        selectedCellIds.includes(conn.fromCellId) &&
+        selectedCellIds.includes(conn.toCellId)
+    );
+    selectedConnections.forEach((conn) => {
+      updateConnection(conn.id, { strokeWidth: weight });
+    });
+    saveHistory();
+    onClose();
+  };
+
+  const handleColorPicker = (type: 'background' | 'text' | 'border' | 'connection' | 'canvas') => {
     const input = document.createElement('input');
     input.type = 'color';
     input.click();
@@ -210,6 +238,8 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal }: ContextMenuProps) {
         selectedCellIds.forEach((id) => updateCell(id, { backgroundColor: color, styleName: undefined }));
       } else if (type === 'text') {
         selectedCellIds.forEach((id) => updateCell(id, { textColor: color, styleName: undefined }));
+      } else if (type === 'border') {
+        selectedCellIds.forEach((id) => updateCell(id, { borderColor: color, styleName: undefined }));
       } else if (type === 'connection') {
         const selectedConnections = connections.filter(
           (conn) =>
@@ -222,60 +252,6 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal }: ContextMenuProps) {
       }
       saveHistory();
     };
-    onClose();
-  };
-
-  const handleMakeFontBigger = () => {
-    selectedCellIds.forEach((id) => {
-      const cell = cells.find((c) => c.id === id);
-      if (cell) {
-        updateCell(id, { fontSize: Math.min(cell.fontSize + 2, 72) });
-      }
-    });
-    saveHistory();
-    onClose();
-  };
-
-  const handleMakeFontSmaller = () => {
-    selectedCellIds.forEach((id) => {
-      const cell = cells.find((c) => c.id === id);
-      if (cell) {
-        updateCell(id, { fontSize: Math.max(cell.fontSize - 2, 8) });
-      }
-    });
-    saveHistory();
-    onClose();
-  };
-
-  const handleToggleBold = () => {
-    const cell = cells.find((c) => c.id === selectedCellIds[0]);
-    const newBold = !cell?.bold;
-    selectedCellIds.forEach((id) => updateCell(id, { bold: newBold }));
-    saveHistory();
-    onClose();
-  };
-
-  const handleToggleItalic = () => {
-    const cell = cells.find((c) => c.id === selectedCellIds[0]);
-    const newItalic = !cell?.italic;
-    selectedCellIds.forEach((id) => updateCell(id, { italic: newItalic }));
-    saveHistory();
-    onClose();
-  };
-
-  const handleToggleUnderline = () => {
-    const cell = cells.find((c) => c.id === selectedCellIds[0]);
-    const newUnderline = !cell?.underline;
-    selectedCellIds.forEach((id) => updateCell(id, { underline: newUnderline }));
-    saveHistory();
-    onClose();
-  };
-
-  const handleToggleStrikethrough = () => {
-    const cell = cells.find((c) => c.id === selectedCellIds[0]);
-    const newStrikethrough = !cell?.strikethrough;
-    selectedCellIds.forEach((id) => updateCell(id, { strikethrough: newStrikethrough }));
-    saveHistory();
     onClose();
   };
 
@@ -301,18 +277,6 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal }: ContextMenuProps) {
     onClose();
   };
 
-  const handleBorderColor = () => {
-    const input = document.createElement('input');
-    input.type = 'color';
-    input.click();
-    input.onchange = (e) => {
-      const color = (e.target as HTMLInputElement).value;
-      selectedCellIds.forEach((id) => updateCell(id, { borderColor: color, styleName: undefined }));
-      saveHistory();
-    };
-    onClose();
-  };
-
   const handleBorderShape = (radius: number) => {
     selectedCellIds.forEach((id) => updateCell(id, { borderRadius: radius, styleName: undefined }));
     saveHistory();
@@ -327,7 +291,6 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal }: ContextMenuProps) {
   const handleAlign = (type: 'top' | 'bottom' | 'left' | 'right' | 'vcenter' | 'hcenter') => {
     if (selectedCellIds.length < 2) return;
 
-    // First selected cell is the reference
     const referenceCell = cells.find((c) => c.id === selectedCellIds[0]);
     if (!referenceCell) return;
 
@@ -351,11 +314,9 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal }: ContextMenuProps) {
           updates.x = referenceCell.x + referenceCell.width - cell.width;
           break;
         case 'hcenter':
-          // Horizontal center = align on a horizontal line (align y-coordinates)
           updates.y = referenceCell.y + (referenceCell.height / 2) - (cell.height / 2);
           break;
         case 'vcenter':
-          // Vertical center = align on a vertical line (align x-coordinates)
           updates.x = referenceCell.x + (referenceCell.width / 2) - (cell.width / 2);
           break;
       }
@@ -375,22 +336,14 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal }: ContextMenuProps) {
       .filter((c): c is Cell => c !== undefined);
 
     if (direction === 'horizontal') {
-      // Sort by x position (left edge)
       const sorted = [...selectedCells].sort((a, b) => a.x - b.x);
-
-      // Leftmost and rightmost stay in place
       const leftmost = sorted[0];
       const rightmost = sorted[sorted.length - 1];
-
-      // Calculate total span between leftmost and rightmost centers
       const leftCenter = leftmost.x + leftmost.width / 2;
       const rightCenter = rightmost.x + rightmost.width / 2;
       const totalSpan = rightCenter - leftCenter;
-
-      // Calculate spacing between centers
       const spacing = totalSpan / (sorted.length - 1);
 
-      // Update positions of cells in between
       for (let i = 1; i < sorted.length - 1; i++) {
         const cell = sorted[i];
         const newCenterX = leftCenter + spacing * i;
@@ -398,22 +351,14 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal }: ContextMenuProps) {
         updateCell(cell.id, { x: newX });
       }
     } else {
-      // Sort by y position (top edge)
       const sorted = [...selectedCells].sort((a, b) => a.y - b.y);
-
-      // Topmost and bottommost stay in place
       const topmost = sorted[0];
       const bottommost = sorted[sorted.length - 1];
-
-      // Calculate total span between topmost and bottommost centers
       const topCenter = topmost.y + topmost.height / 2;
       const bottomCenter = bottommost.y + bottommost.height / 2;
       const totalSpan = bottomCenter - topCenter;
-
-      // Calculate spacing between centers
       const spacing = totalSpan / (sorted.length - 1);
 
-      // Update positions of cells in between
       for (let i = 1; i < sorted.length - 1; i++) {
         const cell = sorted[i];
         const newCenterY = topCenter + spacing * i;
@@ -429,11 +374,9 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal }: ContextMenuProps) {
   const handleAddToStyles = () => {
     if (selectedCellIds.length === 0) return;
 
-    // Get the first selected cell's style
     const cell = cells.find((c) => c.id === selectedCellIds[0]);
     if (!cell) return;
 
-    // Generate auto-name: User1, User2, etc.
     const userPresets = colorPresets.filter(p => p.name.startsWith('User'));
     let nextNum = 1;
     const userNumbers = userPresets.map(p => {
@@ -461,7 +404,6 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal }: ContextMenuProps) {
     if (selectedCells.length === 0) return;
     const input = document.createElement('input');
     input.type = 'color';
-    // Use the first selected dot's color as default
     const firstDot = selectedCells.find(c => c.isDot);
     if (firstDot) {
       input.value = firstDot.backgroundColor;
@@ -513,6 +455,34 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal }: ContextMenuProps) {
   const handleUngroupObjects = () => {
     if (selectedCellIds.length === 0) return;
     ungroupCells(selectedCellIds);
+    onClose();
+  };
+
+  const handleCreateConnectionDot = () => {
+    const worldX = (position.x - offsetX) / zoom;
+    const worldY = (position.y - offsetY) / zoom;
+
+    addCell({
+      id: `cell-${Date.now()}`,
+      x: worldX,
+      y: worldY,
+      width: 16,
+      height: 16,
+      text: '',
+      backgroundColor: '#333333',
+      textColor: '#ffffff',
+      borderColor: '#333333',
+      borderThickness: 0,
+      borderRadius: 8,
+      fontFamily: 'Arial',
+      fontSize: 14,
+      bold: false,
+      italic: false,
+      underline: false,
+      strikethrough: false,
+      isDot: true,
+    });
+    saveHistory();
     onClose();
   };
 
@@ -577,84 +547,90 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal }: ContextMenuProps) {
         minWidth: 200,
       }}
     >
-      <MenuItem onClick={handleAddConnection} disabled={selectedCellIds.length < 2}>
-        Add connection
+      {/* Connection options */}
+      <MenuItem onClick={() => handleAddConnection('Dashed')} disabled={selectedCellIds.length < 2}>
+        Add dashed connection
       </MenuItem>
-      <MenuItem onClick={handleAddArrowConnection} disabled={selectedCellIds.length < 2}>
+      <MenuItem onClick={() => handleAddConnection('Solid')} disabled={selectedCellIds.length < 2}>
+        Add solid connection
+      </MenuItem>
+      <MenuItem onClick={() => handleAddConnection('Arrow')} disabled={selectedCellIds.length < 2}>
         Add arrow connection
       </MenuItem>
-      <MenuItem onClick={handleRemoveConnections} disabled={!hasConnectionsBetweenSelected}>
-        Remove connections
-      </MenuItem>
+
       <MenuDivider />
-      <MenuSubmenu label="Quick-change style">
+
+      {/* Cell creation options */}
+      <MenuSubmenu label="Add new cell">
+        <MenuItem onClick={() => handleCreateCell()}>Default</MenuItem>
+        <MenuDivider />
+        {colorPresets.map((preset) => (
+          <MenuItem key={preset.name} onClick={() => handleCreateCell(preset)}>
+            {preset.name}
+          </MenuItem>
+        ))}
+      </MenuSubmenu>
+      <MenuItem onClick={onOpenTimelineModal}>Add Timeline cell</MenuItem>
+      <MenuItem onClick={handleCreateConnectionDot}>Add Connection dot</MenuItem>
+      <MenuSubmenu label="Change style" disabled={!hasCellsSelected}>
         {colorPresets.map((preset) => (
           <MenuItem
             key={preset.name}
             onClick={() => handleQuickStyle(preset)}
-            disabled={selectedCellIds.length === 0}
+            disabled={!hasCellsSelected}
           >
             {preset.name}
           </MenuItem>
         ))}
       </MenuSubmenu>
-      <MenuItem onClick={handleAddToStyles} disabled={selectedCellIds.length === 0}>
+      <MenuItem onClick={handleAddToStyles} disabled={!hasCellsSelected}>
         Add to Styles
       </MenuItem>
-      <MenuItem onClick={onOpenTimelineModal}>Timeline cell</MenuItem>
-      <MenuItem onClick={() => {
-        const { addCell } = useStore.getState();
-        const worldX = (position.x - useStore.getState().offsetX) / useStore.getState().zoom;
-        const worldY = (position.y - useStore.getState().offsetY) / useStore.getState().zoom;
 
-        addCell({
-          id: `cell-${Date.now()}`,
-          x: worldX,
-          y: worldY,
-          width: 16,
-          height: 16,
-          text: '',
-          backgroundColor: '#333333',
-          textColor: '#ffffff',
-          borderColor: '#333333',
-          borderThickness: 0,
-          borderRadius: 8,
-          fontFamily: 'Arial',
-          fontSize: 14,
-          bold: false,
-          italic: false,
-          underline: false,
-          strikethrough: false,
-          isDot: true,
-        });
-        useStore.getState().saveHistory();
-        onClose();
-      }}>Connection dot</MenuItem>
       <MenuDivider />
+
+      {/* Pin Location */}
+      <MenuItem onClick={onPinLocation}>Pin Location</MenuItem>
+
+      <MenuDivider />
+
+      {/* Styling options */}
+      <MenuSubmenu label="Color">
+        <MenuItem onClick={() => handleColorPicker('border')}>Border</MenuItem>
+        <MenuItem onClick={() => handleColorPicker('connection')}>Connection</MenuItem>
+        <MenuItem onClick={() => handleColorPicker('text')}>Cell text</MenuItem>
+        <MenuItem onClick={() => handleColorPicker('background')}>Cell background</MenuItem>
+        <MenuItem onClick={() => handleColorPicker('canvas')}>Canvas background</MenuItem>
+      </MenuSubmenu>
+
       <MenuSubmenu label="Connection style" disabled={!hasConnectionsBetweenSelected}>
         <MenuItem onClick={() => handleConnectionStyle('Dotted')} disabled={!hasConnectionsBetweenSelected}>Dotted</MenuItem>
         <MenuItem onClick={() => handleConnectionStyle('Dashed')} disabled={!hasConnectionsBetweenSelected}>Dashed</MenuItem>
         <MenuItem onClick={() => handleConnectionStyle('Solid')} disabled={!hasConnectionsBetweenSelected}>Solid</MenuItem>
         <MenuItem onClick={() => handleConnectionStyle('Bold')} disabled={!hasConnectionsBetweenSelected}>Bold</MenuItem>
         <MenuItem onClick={() => handleConnectionStyle('Arrow')} disabled={!hasConnectionsBetweenSelected}>Arrow</MenuItem>
+        <MenuDivider />
+        <MenuSubmenu label="Change weight" disabled={!hasConnectionsBetweenSelected}>
+          <MenuItem onClick={() => handleConnectionWeight(0.5)} disabled={!hasConnectionsBetweenSelected}>0.5px</MenuItem>
+          <MenuItem onClick={() => handleConnectionWeight(1)} disabled={!hasConnectionsBetweenSelected}>1px</MenuItem>
+          <MenuItem onClick={() => handleConnectionWeight(1.5)} disabled={!hasConnectionsBetweenSelected}>1.5px</MenuItem>
+          <MenuItem onClick={() => handleConnectionWeight(2)} disabled={!hasConnectionsBetweenSelected}>2px</MenuItem>
+          <MenuItem onClick={() => handleConnectionWeight(2.5)} disabled={!hasConnectionsBetweenSelected}>2.5px</MenuItem>
+          <MenuItem onClick={() => handleConnectionWeight(3)} disabled={!hasConnectionsBetweenSelected}>3px</MenuItem>
+          <MenuItem onClick={() => handleConnectionWeight(4)} disabled={!hasConnectionsBetweenSelected}>4px</MenuItem>
+          <MenuItem onClick={() => handleConnectionWeight(5)} disabled={!hasConnectionsBetweenSelected}>5px</MenuItem>
+          <MenuItem onClick={() => handleConnectionWeight(6)} disabled={!hasConnectionsBetweenSelected}>6px</MenuItem>
+          <MenuItem onClick={() => handleConnectionWeight(8)} disabled={!hasConnectionsBetweenSelected}>8px</MenuItem>
+          <MenuItem onClick={() => handleConnectionWeight(10)} disabled={!hasConnectionsBetweenSelected}>10px</MenuItem>
+          <MenuItem onClick={() => handleConnectionWeight(12)} disabled={!hasConnectionsBetweenSelected}>12px</MenuItem>
+        </MenuSubmenu>
+        <MenuItem onClick={() => handleColorPicker('connection')} disabled={!hasConnectionsBetweenSelected}>Change color</MenuItem>
       </MenuSubmenu>
-      <MenuSubmenu label="Color">
-        <MenuItem onClick={() => handleColorPicker('background')}>Cell background</MenuItem>
-        <MenuItem onClick={() => handleColorPicker('text')}>Text</MenuItem>
-        <MenuItem onClick={() => handleColorPicker('connection')}>Connection</MenuItem>
-        <MenuItem onClick={() => handleColorPicker('canvas')}>Canvas background</MenuItem>
-      </MenuSubmenu>
-      <MenuSubmenu label="Font">
-        <MenuItem onClick={handleMakeFontBigger} shortcut={`(${modKey}+'+')`}>Make Bigger</MenuItem>
-        <MenuItem onClick={handleMakeFontSmaller} shortcut={`(${modKey}+'-')`}>Make Smaller</MenuItem>
-        <MenuItem onClick={handleToggleBold} shortcut={`(${modKey}+B)`}>Bold</MenuItem>
-        <MenuItem onClick={handleToggleItalic} shortcut={`(${modKey}+I)`}>Italic</MenuItem>
-        <MenuItem onClick={handleToggleUnderline} shortcut={`(${modKey}+U)`}>Underline</MenuItem>
-        <MenuItem onClick={handleToggleStrikethrough}>Strikethrough</MenuItem>
-      </MenuSubmenu>
+
       <MenuSubmenu label="Border">
-        <MenuItem onClick={handleAddBorder}>Add Border</MenuItem>
-        <MenuItem onClick={handleRemoveBorder}>Remove Border</MenuItem>
+        <MenuItem onClick={handleAddBorder}>Add border</MenuItem>
+        <MenuItem onClick={handleRemoveBorder}>Remove border</MenuItem>
+        <MenuDivider />
         <MenuSubmenu label="Thickness">
           <MenuItem onClick={() => handleBorderThickness(0)}>No Border</MenuItem>
           <MenuItem onClick={() => handleBorderThickness(1)}>1px</MenuItem>
@@ -668,10 +644,13 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal }: ContextMenuProps) {
           <MenuItem onClick={() => handleBorderThickness(12)}>12px</MenuItem>
           <MenuItem onClick={() => handleBorderThickness(20)}>20px</MenuItem>
         </MenuSubmenu>
-        <MenuItem onClick={handleBorderColor}>Color</MenuItem>
-        <MenuItem onClick={() => handleBorderShape(0)}>Sharp rectangle</MenuItem>
-        <MenuItem onClick={() => handleBorderShape(8)}>Rounded rectangle</MenuItem>
+        <MenuItem onClick={() => handleColorPicker('border')}>Color</MenuItem>
+        <MenuSubmenu label="Shape">
+          <MenuItem onClick={() => handleBorderShape(0)}>Sharp rectangle</MenuItem>
+          <MenuItem onClick={() => handleBorderShape(8)}>Rounded rectangle</MenuItem>
+        </MenuSubmenu>
       </MenuSubmenu>
+
       <MenuSubmenu label="Align" disabled={selectedCellIds.length < 2}>
         <MenuItem onClick={() => handleAlign('left')} disabled={selectedCellIds.length < 2}>Left Edge</MenuItem>
         <MenuItem onClick={() => handleAlign('hcenter')} disabled={selectedCellIds.length < 2}>Horizontal Center</MenuItem>
@@ -681,18 +660,36 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal }: ContextMenuProps) {
         <MenuItem onClick={() => handleAlign('vcenter')} disabled={selectedCellIds.length < 2}>Vertical Center</MenuItem>
         <MenuItem onClick={() => handleAlign('bottom')} disabled={selectedCellIds.length < 2}>Bottom Edge</MenuItem>
       </MenuSubmenu>
+
       <MenuSubmenu label="Distribute" disabled={selectedCellIds.length < 3}>
         <MenuItem onClick={() => handleDistribute('horizontal')} disabled={selectedCellIds.length < 3}>Horizontally</MenuItem>
         <MenuItem onClick={() => handleDistribute('vertical')} disabled={selectedCellIds.length < 3}>Vertically</MenuItem>
       </MenuSubmenu>
+
+      {/* Commented out Font submenu as requested
+      <MenuSubmenu label="Font">
+        <MenuItem onClick={handleMakeFontBigger} shortcut={`(${modKey}+'+')`}>Make Bigger</MenuItem>
+        <MenuItem onClick={handleMakeFontSmaller} shortcut={`(${modKey}+'-')`}>Make Smaller</MenuItem>
+        <MenuItem onClick={handleToggleBold} shortcut={`(${modKey}+B)`}>Bold</MenuItem>
+        <MenuItem onClick={handleToggleItalic} shortcut={`(${modKey}+I)`}>Italic</MenuItem>
+        <MenuItem onClick={handleToggleUnderline} shortcut={`(${modKey}+U)`}>Underline</MenuItem>
+        <MenuItem onClick={handleToggleStrikethrough}>Strikethrough</MenuItem>
+      </MenuSubmenu>
+      */}
+
       <MenuDivider />
+
+      {/* Group options */}
       <MenuItem onClick={handleGroupObjects} disabled={selectedCellIds.length < 2}>
         Group Objects
       </MenuItem>
       <MenuItem onClick={handleUngroupObjects} disabled={!someSelectedAreGrouped}>
         Ungroup Objects
       </MenuItem>
+
       <MenuDivider />
+
+      {/* Delete */}
       <MenuItem onClick={handleDelete} disabled={selectedCellIds.length === 0}>
         Delete
       </MenuItem>
@@ -760,19 +757,14 @@ function MenuSubmenu({ label, children, disabled = false }: { label: string; chi
 
       let position: { left?: string; right?: string; top?: number } = { left: '100%', top: 0 };
 
-      // Check if submenu goes off right edge
       if (submenuRect.right > viewportWidth - margin) {
-        // Position to the left of parent instead
         position = { right: '100%', top: 0 };
       }
 
-      // Check if submenu goes off bottom edge
       if (submenuRect.bottom > viewportHeight - margin) {
-        // Calculate how much we need to shift up
         const overflow = submenuRect.bottom - (viewportHeight - margin);
         position.top = -overflow;
 
-        // Make sure we don't go off the top
         const wouldBeTop = submenuRect.top - overflow;
         if (wouldBeTop < margin) {
           position.top = -(submenuRect.top - margin);
@@ -789,9 +781,28 @@ function MenuSubmenu({ label, children, disabled = false }: { label: string; chi
       onMouseEnter={() => !disabled && setIsOpen(true)}
       onMouseLeave={() => setIsOpen(false)}
     >
-      <MenuItem disabled={disabled}>
-        {label} <span style={{ float: 'right' }}>▸</span>
-      </MenuItem>
+      <div
+        style={{
+          padding: '8px 16px',
+          cursor: disabled ? 'not-allowed' : 'pointer',
+          opacity: disabled ? 0.5 : 1,
+          fontSize: 14,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '24px',
+          whiteSpace: 'nowrap',
+        }}
+        onMouseEnter={(e) => {
+          if (!disabled) e.currentTarget.style.backgroundColor = '#f0f0f0';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.backgroundColor = 'transparent';
+        }}
+      >
+        <span>{label}</span>
+        <span style={{ marginLeft: 'auto', paddingLeft: '24px' }}>▸</span>
+      </div>
       {isOpen && (
         <div
           ref={submenuRef}

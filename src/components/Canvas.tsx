@@ -9,6 +9,8 @@ import TimelineModal from './TimelineModal';
 import SearchPanel from './SearchPanel';
 import StylePalette from './StylePalette';
 import SettingsModal from './SettingsModal';
+import PinnedLocations from './PinnedLocations';
+import PinLocationModal from './PinLocationModal';
 
 function Canvas() {
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -19,8 +21,11 @@ function Canvas() {
   const [showTimelineModal, setShowTimelineModal] = useState(false);
   const [showSearchPanel, setShowSearchPanel] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showPinnedLocations, setShowPinnedLocations] = useState(false);
+  const [showPinLocationModal, setShowPinLocationModal] = useState(false);
   const [selectionBox, setSelectionBox] = useState<{ startX: number; startY: number; endX: number; endY: number } | null>(null);
   const [isSelecting, setIsSelecting] = useState(false);
+  const [isShiftSelecting, setIsShiftSelecting] = useState(false);
 
   const {
     cells,
@@ -47,6 +52,7 @@ function Canvas() {
     deleteCells,
     addConnection,
     saveHistory,
+    addPinnedLocation,
   } = useStore();
 
   const clipboardRef = useRef<{ cells: Cell[], connections: any[] }>({ cells: [], connections: [] });
@@ -130,8 +136,13 @@ function Canvas() {
       const y = (e.clientY - rect.top - offsetY) / zoom;
 
       setIsSelecting(true);
+      setIsShiftSelecting(e.shiftKey);
       setSelectionBox({ startX: x, startY: y, endX: x, endY: y });
-      clearSelection();
+
+      // Only clear selection if Shift is not held
+      if (!e.shiftKey) {
+        clearSelection();
+      }
     }
   };
 
@@ -153,7 +164,7 @@ function Canvas() {
       const minY = Math.min(selectionBox.startY, selectionBox.endY);
       const maxY = Math.max(selectionBox.startY, selectionBox.endY);
 
-      const selectedIds = cells
+      const newSelectedIds = cells
         .filter((cell) => {
           const cellRight = cell.x + cell.width;
           const cellBottom = cell.y + cell.height;
@@ -163,11 +174,19 @@ function Canvas() {
         })
         .map((cell) => cell.id);
 
-      if (selectedIds.length > 0) {
-        setSelectedCells(selectedIds);
+      if (newSelectedIds.length > 0) {
+        if (isShiftSelecting) {
+          // Add to existing selection (remove duplicates)
+          const combinedIds = [...new Set([...selectedCellIds, ...newSelectedIds])];
+          setSelectedCells(combinedIds);
+        } else {
+          // Replace selection
+          setSelectedCells(newSelectedIds);
+        }
       }
 
       setIsSelecting(false);
+      setIsShiftSelecting(false);
       setSelectionBox(null);
     }
   };
@@ -311,6 +330,24 @@ function Canvas() {
   const handleOpenTimelineModal = () => {
     setShowTimelineModal(true);
     setContextMenu(null);
+  };
+
+  const handlePinLocation = () => {
+    setShowPinLocationModal(true);
+    setContextMenu(null);
+  };
+
+  const handleConfirmPinLocation = (name: string) => {
+    const newLocation = {
+      id: `pin-${Date.now()}`,
+      name: name,
+      offsetX,
+      offsetY,
+      zoom,
+      textColor: '#000000',
+      bgColor: '#fffdf5',
+    };
+    addPinnedLocation(newLocation);
   };
 
   useEffect(() => {
@@ -670,7 +707,7 @@ function Canvas() {
         )}
       </div>
 
-      <ZoomControls />
+      <ZoomControls onTogglePinnedLocations={() => setShowPinnedLocations(!showPinnedLocations)} />
 
       {contextMenu && (
         <ContextMenu
@@ -678,8 +715,14 @@ function Canvas() {
           y={contextMenu.y}
           onClose={handleCloseContextMenu}
           onOpenTimelineModal={handleOpenTimelineModal}
+          onPinLocation={handlePinLocation}
         />
       )}
+
+      <PinnedLocations
+        isOpen={showPinnedLocations}
+        onClose={() => setShowPinnedLocations(false)}
+      />
 
       {connectionContextMenu && (
         <ConnectionContextMenu
@@ -729,6 +772,13 @@ function Canvas() {
 
       {showSettingsModal && (
         <SettingsModal onClose={() => setShowSettingsModal(false)} />
+      )}
+
+      {showPinLocationModal && (
+        <PinLocationModal
+          onConfirm={handleConfirmPinLocation}
+          onClose={() => setShowPinLocationModal(false)}
+        />
       )}
     </div>
   );

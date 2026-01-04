@@ -1,6 +1,10 @@
 import { useStore } from '../store';
 
-function ZoomControls() {
+interface ZoomControlsProps {
+  onTogglePinnedLocations: () => void;
+}
+
+function ZoomControls({ onTogglePinnedLocations }: ZoomControlsProps) {
   const { zoom, setZoom, setOffset } = useStore();
 
   const handleZoomChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -54,6 +58,20 @@ function ZoomControls() {
         }}
       >
         Reset
+      </button>
+      <button
+        onClick={onTogglePinnedLocations}
+        style={{
+          padding: '5px 10px',
+          border: '1px solid #ccc',
+          borderRadius: 4,
+          backgroundColor: 'white',
+          cursor: 'pointer',
+          fontSize: 16,
+        }}
+        title="Pinned Locations"
+      >
+        📍
       </button>
     </div>
   );

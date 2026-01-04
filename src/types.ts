@@ -45,6 +45,7 @@ export interface Connection {
   toPinIndex?: number;
   color: string;
   style: 'Dotted' | 'Dashed' | 'Solid' | 'Bold' | 'Arrow';
+  strokeWidth?: number;
 }
 
 export interface ColorPreset {
@@ -66,6 +67,16 @@ export interface DefaultCellStyle {
   fontFamily: string;
 }
 
+export interface PinnedLocation {
+  id: string;
+  name: string;
+  offsetX: number;
+  offsetY: number;
+  zoom: number;
+  textColor: string;
+  bgColor: string;
+}
+
 export interface CanvasState {
   cells: Cell[];
   connections: Connection[];
@@ -82,6 +93,7 @@ export interface CanvasState {
   gridSize: number;
   gridColor: string;
   gridOpacity: number;
+  pinnedLocations: PinnedLocation[];
 }
 
 export interface HistoryState {

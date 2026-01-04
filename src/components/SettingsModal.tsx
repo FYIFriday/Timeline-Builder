@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useStore } from '../store';
-import { ColorPreset, DefaultCellStyle } from '../types';
+import { ColorPreset, DefaultCellStyle, PinnedLocation } from '../types';
 import { DEFAULT_COLOR_PRESETS, DEFAULT_CELL_STYLE } from '../store';
 
 interface SettingsModalProps {
@@ -16,6 +16,7 @@ function SettingsModal({ onClose }: SettingsModalProps) {
     gridSize,
     gridColor,
     gridOpacity,
+    pinnedLocations,
     updateCell,
     updateColorPreset,
     setDefaultCellStyle,
@@ -23,9 +24,12 @@ function SettingsModal({ onClose }: SettingsModalProps) {
     setGridEnabled,
     setGridSize,
     setGridColor,
-    setGridOpacity
+    setGridOpacity,
+    setPinnedLocations,
+    updatePinnedLocation,
+    deletePinnedLocation,
   } = useStore();
-  const [activeTab, setActiveTab] = useState<'default' | 'presets' | 'grid' | 'guide'>('default');
+  const [activeTab, setActiveTab] = useState<'default' | 'presets' | 'grid' | 'pinnedLocations' | 'guide'>('default');
   const [editedDefault, setEditedDefault] = useState<DefaultCellStyle>({ ...defaultCellStyle });
   const [editedPresets, setEditedPresets] = useState<ColorPreset[]>([...colorPresets]);
   // Track which original preset each edited preset came from (for handling renames)
@@ -34,6 +38,7 @@ function SettingsModal({ onClose }: SettingsModalProps) {
   const [editedGridSize, setEditedGridSize] = useState(gridSize);
   const [editedGridColor, setEditedGridColor] = useState(gridColor);
   const [editedGridOpacity, setEditedGridOpacity] = useState(gridOpacity);
+  const [editedPinnedLocations, setEditedPinnedLocations] = useState<PinnedLocation[]>([...pinnedLocations]);
 
   const handleSave = () => {
     // Build a mapping from original preset names to their edited versions
@@ -88,6 +93,7 @@ function SettingsModal({ onClose }: SettingsModalProps) {
     setGridSize(editedGridSize);
     setGridColor(editedGridColor);
     setGridOpacity(editedGridOpacity);
+    setPinnedLocations(editedPinnedLocations);
     onClose();
   };
 
@@ -170,6 +176,33 @@ function SettingsModal({ onClose }: SettingsModalProps) {
     setPresetIndices(newIndices);
   };
 
+  const handlePinnedLocationChange = (index: number, field: keyof PinnedLocation, value: string) => {
+    const newLocations = [...editedPinnedLocations];
+    newLocations[index] = { ...newLocations[index], [field]: value };
+    setEditedPinnedLocations(newLocations);
+  };
+
+  const handleMovePinnedLocationUp = (index: number) => {
+    if (index === 0) return;
+    const newLocations = [...editedPinnedLocations];
+    [newLocations[index - 1], newLocations[index]] = [newLocations[index], newLocations[index - 1]];
+    setEditedPinnedLocations(newLocations);
+  };
+
+  const handleMovePinnedLocationDown = (index: number) => {
+    if (index === editedPinnedLocations.length - 1) return;
+    const newLocations = [...editedPinnedLocations];
+    [newLocations[index], newLocations[index + 1]] = [newLocations[index + 1], newLocations[index]];
+    setEditedPinnedLocations(newLocations);
+  };
+
+  const handleDeletePinnedLocation = (index: number) => {
+    if (confirm(`Delete pinned location "${editedPinnedLocations[index].name}"?`)) {
+      const newLocations = editedPinnedLocations.filter((_, i) => i !== index);
+      setEditedPinnedLocations(newLocations);
+    }
+  };
+
   return (
     <div
       style={{
@@ -203,7 +236,10 @@ function SettingsModal({ onClose }: SettingsModalProps) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h2 style={{ margin: 0, fontSize: 20 }}>Settings</h2>
           <button
-            onClick={onClose}
+            onClick={(e) => {
+              e.stopPropagation();
+              onClose();
+            }}
             style={{
               background: 'none',
               border: 'none',
@@ -254,6 +290,19 @@ function SettingsModal({ onClose }: SettingsModalProps) {
             }}
           >
             Grid
+          </button>
+          <button
+            onClick={() => setActiveTab('pinnedLocations')}
+            style={{
+              padding: '8px 16px',
+              background: 'none',
+              border: 'none',
+              borderBottom: activeTab === 'pinnedLocations' ? '2px solid #3b82f6' : 'none',
+              cursor: 'pointer',
+              fontWeight: activeTab === 'pinnedLocations' ? 'bold' : 'normal',
+            }}
+          >
+            Pinned Locations
           </button>
           <button
             onClick={() => setActiveTab('guide')}
@@ -515,6 +564,101 @@ function SettingsModal({ onClose }: SettingsModalProps) {
                 {Math.round(editedGridOpacity * 100)}%
               </div>
             </label>
+          </div>
+        )}
+
+        {activeTab === 'pinnedLocations' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {editedPinnedLocations.length === 0 ? (
+              <div style={{ fontSize: 14, color: '#999', textAlign: 'center', padding: '40px 20px' }}>
+                No pinned locations yet.
+                <br />
+                Right-click the canvas and select "Pin Location" to add one.
+              </div>
+            ) : (
+              editedPinnedLocations.map((location, index) => (
+                <div key={location.id} style={{ border: '1px solid #ccc', padding: 12, borderRadius: 4, position: 'relative' }}>
+                  <div style={{ position: 'absolute', top: 8, right: 8, display: 'flex', gap: 4 }}>
+                    <button
+                      onClick={() => handleMovePinnedLocationUp(index)}
+                      disabled={index === 0}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: index === 0 ? 'not-allowed' : 'pointer',
+                        fontSize: 16,
+                        color: index === 0 ? '#ccc' : '#3b82f6',
+                        padding: 4,
+                      }}
+                      title="Move up"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      onClick={() => handleMovePinnedLocationDown(index)}
+                      disabled={index === editedPinnedLocations.length - 1}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: index === editedPinnedLocations.length - 1 ? 'not-allowed' : 'pointer',
+                        fontSize: 16,
+                        color: index === editedPinnedLocations.length - 1 ? '#ccc' : '#3b82f6',
+                        padding: 4,
+                      }}
+                      title="Move down"
+                    >
+                      ↓
+                    </button>
+                    <button
+                      onClick={() => handleDeletePinnedLocation(index)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontSize: 16,
+                        color: '#dc2626',
+                        padding: 4,
+                      }}
+                      title="Delete"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <label>
+                    <div style={{ fontSize: 12, marginBottom: 4, fontWeight: 'bold' }}>Name</div>
+                    <input
+                      type="text"
+                      value={location.name}
+                      onChange={(e) => handlePinnedLocationChange(index, 'name', e.target.value)}
+                      style={{ width: '100%', padding: 6, fontSize: 14, marginBottom: 8, border: '1px solid #ccc', borderRadius: 4 }}
+                    />
+                  </label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <label>
+                      <div style={{ fontSize: 12, marginBottom: 4 }}>Text Color</div>
+                      <input
+                        type="color"
+                        value={location.textColor}
+                        onChange={(e) => handlePinnedLocationChange(index, 'textColor', e.target.value)}
+                        style={{ width: '100%', height: 30, cursor: 'pointer' }}
+                      />
+                    </label>
+                    <label>
+                      <div style={{ fontSize: 12, marginBottom: 4 }}>Background Color</div>
+                      <input
+                        type="color"
+                        value={location.bgColor}
+                        onChange={(e) => handlePinnedLocationChange(index, 'bgColor', e.target.value)}
+                        style={{ width: '100%', height: 30, cursor: 'pointer' }}
+                      />
+                    </label>
+                  </div>
+                  <div style={{ marginTop: 8, fontSize: 11, color: '#666' }}>
+                    Border will match text color
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         )}
 

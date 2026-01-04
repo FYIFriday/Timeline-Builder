@@ -7,7 +7,8 @@ An infinite canvas flowchart and timeline planning tool built with Electron, Rea
 - **Infinite Canvas**: Pan by dragging and zoom with scroll wheel (10% to 400%)
 - **Flexible Cells**: Create, edit, move, and resize cells with ease
 - **Timeline Cells**: Create timeline cells with custom number ranges and orientations
-- **Connections**: Draw connections between cells with multiple styles
+- **Connections**: Draw connections between cells with multiple styles and weights
+- **Pinned Locations**: Save and quickly navigate to specific canvas positions and zoom levels
 - **Rich Styling**: Color presets, custom colors, fonts, and borders
 - **Keyboard Shortcuts**: Full support for undo/redo, copy/paste, and more
 - **Auto-save**: Automatic backup every 3 minutes
@@ -44,14 +45,17 @@ npm run package:win
 
 ## Usage
 
-- **Create Cell**: Double-click on empty canvas
+- **Create Cell**: Double-click on empty canvas, or right-click > Add new cell
 - **Edit Cell**: Double-click on a cell
 - **Select**: Click on a cell, Shift+Click for multi-select
 - **Move**: Drag selected cells
 - **Resize**: Drag the blue resize handle on selected cells
 - **Pan Canvas**: Drag empty space
-- **Zoom**: Scroll wheel
-- **Context Menu**: Right-click for styling and connection options
+- **Zoom**: Scroll wheel or use zoom controls (bottom-right corner)
+- **Pin Location**: Right-click > Pin Location to save current view position and zoom
+- **Navigate to Pinned Location**: Click the 📍 button (next to Reset button) to view and navigate to pinned locations
+- **Manage Pinned Locations**: Settings (⚙️) > Pinned Locations tab to reorder, recolor, and delete pinned locations
+- **Context Menu**: Right-click for styling, connection options, and more
 - **Delete**: Select cells and press Delete or Backspace
 
 ### Keyboard Shortcuts

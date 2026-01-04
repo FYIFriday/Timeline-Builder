@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Cell, Connection, CanvasState, HistoryState, ColorPreset, DefaultCellStyle } from './types';
+import { Cell, Connection, CanvasState, HistoryState, ColorPreset, DefaultCellStyle, PinnedLocation } from './types';
 
 interface StoreState extends CanvasState {
   addCell: (cell: Cell) => void;
@@ -32,6 +32,11 @@ interface StoreState extends CanvasState {
   setGridSize: (size: number) => void;
   setGridColor: (color: string) => void;
   setGridOpacity: (opacity: number) => void;
+  addPinnedLocation: (location: PinnedLocation) => void;
+  updatePinnedLocation: (id: string, updates: Partial<PinnedLocation>) => void;
+  deletePinnedLocation: (id: string) => void;
+  setPinnedLocations: (locations: PinnedLocation[]) => void;
+  goToPinnedLocation: (id: string) => void;
 }
 
 const DEFAULT_CELL_COLOR = '#fffdf5';
@@ -79,6 +84,7 @@ const initialState: CanvasState = {
   gridSize: 50,
   gridColor: '#cccccc',
   gridOpacity: 0.5,
+  pinnedLocations: [],
 };
 
 export const useStore = create<StoreState>((set, get) => ({
@@ -331,6 +337,42 @@ export const useStore = create<StoreState>((set, get) => ({
 
   setGridOpacity: (opacity) => {
     set({ gridOpacity: Math.max(0, Math.min(1, opacity)) });
+  },
+
+  addPinnedLocation: (location) => {
+    set((state) => ({
+      pinnedLocations: [...state.pinnedLocations, location],
+    }));
+  },
+
+  updatePinnedLocation: (id, updates) => {
+    set((state) => ({
+      pinnedLocations: state.pinnedLocations.map((loc) =>
+        loc.id === id ? { ...loc, ...updates } : loc
+      ),
+    }));
+  },
+
+  deletePinnedLocation: (id) => {
+    set((state) => ({
+      pinnedLocations: state.pinnedLocations.filter((loc) => loc.id !== id),
+    }));
+  },
+
+  setPinnedLocations: (locations) => {
+    set({ pinnedLocations: locations });
+  },
+
+  goToPinnedLocation: (id) => {
+    const state = get();
+    const location = state.pinnedLocations.find((loc) => loc.id === id);
+    if (location) {
+      set({
+        offsetX: location.offsetX,
+        offsetY: location.offsetY,
+        zoom: location.zoom,
+      });
+    }
   },
 }));
 
