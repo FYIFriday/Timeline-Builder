@@ -6,9 +6,23 @@ let mainWindow: BrowserWindow | null = null;
 let currentFilePath: string | null = null;
 
 function createWindow() {
+  // Determine icon path based on platform
+  // In dev mode, use the source icon.png. In production, electron-builder handles it.
+  let iconPath: string | undefined;
+
+  if (process.env.NODE_ENV === 'development') {
+    // In development, use the icon.png from project root
+    iconPath = path.join(app.getAppPath(), 'icon.png');
+  } else {
+    // In production, let electron-builder handle the icon
+    // No need to set it manually
+    iconPath = undefined;
+  }
+
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
+    ...(iconPath && { icon: iconPath }),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,

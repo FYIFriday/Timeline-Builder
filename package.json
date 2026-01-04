@@ -27,15 +27,24 @@
     ],
     "mac": {
       "category": "public.app-category.productivity",
+      "icon": "build/icons/icons/mac/icon.icns",
       "target": [
         "dmg",
         "zip"
       ]
     },
     "win": {
+      "icon": "build/icons/icons/win/icon.ico",
       "target": [
         "nsis",
         "zip"
+      ]
+    },
+    "linux": {
+      "icon": "build/icons/icons/png",
+      "target": [
+        "AppImage",
+        "deb"
       ]
     }
   },
@@ -56,6 +65,7 @@
     "cross-env": "^7.0.3",
     "electron": "^28.0.0",
     "electron-builder": "^24.9.1",
+    "electron-icon-maker": "^0.0.5",
     "typescript": "^5.3.3",
     "vite": "^5.0.8",
     "vite-plugin-electron": "^0.28.0",
