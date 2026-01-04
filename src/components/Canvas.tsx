@@ -30,6 +30,10 @@ function Canvas() {
     offsetY,
     zoom,
     canvasBackgroundColor,
+    gridEnabled,
+    gridSize,
+    gridColor,
+    gridOpacity,
     colorPresets,
     defaultCellStyle,
     setOffset,
@@ -46,6 +50,35 @@ function Canvas() {
   } = useStore();
 
   const clipboardRef = useRef<{ cells: Cell[], connections: any[] }>({ cells: [], connections: [] });
+
+  // Calculate grid bounds dynamically based on viewport
+  const [gridBounds, setGridBounds] = useState({ minX: -50000, maxX: 50000, minY: -50000, maxY: 50000 });
+
+  useEffect(() => {
+    const updateGridBounds = () => {
+      if (!canvasRef.current) return;
+
+      const rect = canvasRef.current.getBoundingClientRect();
+      const buffer = 10000; // Large buffer beyond visible area
+
+      // Convert viewport corners to world coordinates
+      const minX = (-offsetX / zoom) - buffer;
+      const maxX = ((rect.width - offsetX) / zoom) + buffer;
+      const minY = (-offsetY / zoom) - buffer;
+      const maxY = ((rect.height - offsetY) / zoom) + buffer;
+
+      // Round to nearest grid unit for cleaner alignment
+      const gridUnit = gridSize * 4;
+      setGridBounds({
+        minX: Math.floor(minX / gridUnit) * gridUnit,
+        maxX: Math.ceil(maxX / gridUnit) * gridUnit,
+        minY: Math.floor(minY / gridUnit) * gridUnit,
+        maxY: Math.ceil(maxY / gridUnit) * gridUnit,
+      });
+    };
+
+    updateGridBounds();
+  }, [offsetX, offsetY, zoom, gridSize]);
 
   const handleWheel = useCallback(
     (e: WheelEvent) => {
@@ -349,6 +382,15 @@ function Canvas() {
         e.preventDefault();
         if (clipboardRef.current.cells.length > 0) {
           const idMap = new Map<string, string>();
+          const groupIdMap = new Map<string, string>();
+
+          // Create new group IDs for any grouped cells
+          clipboardRef.current.cells.forEach((cell) => {
+            if (cell.groupId && !groupIdMap.has(cell.groupId)) {
+              groupIdMap.set(cell.groupId, `group-${Date.now()}-${Math.random()}`);
+            }
+          });
+
           const newCells = clipboardRef.current.cells.map((cell) => {
             const newId = `cell-${Date.now()}-${Math.random()}`;
             idMap.set(cell.id, newId);
@@ -357,6 +399,7 @@ function Canvas() {
               id: newId,
               x: cell.x + 20,
               y: cell.y + 20,
+              groupId: cell.groupId ? groupIdMap.get(cell.groupId) : undefined,
             };
           });
 
@@ -386,6 +429,15 @@ function Canvas() {
         e.preventDefault();
         if (clipboardRef.current.cells.length > 0) {
           const idMap = new Map<string, string>();
+          const groupIdMap = new Map<string, string>();
+
+          // Create new group IDs for any grouped cells
+          clipboardRef.current.cells.forEach((cell) => {
+            if (cell.groupId && !groupIdMap.has(cell.groupId)) {
+              groupIdMap.set(cell.groupId, `group-${Date.now()}-${Math.random()}`);
+            }
+          });
+
           const newCells = clipboardRef.current.cells.map((cell) => {
             const newId = `cell-${Date.now()}-${Math.random()}`;
             idMap.set(cell.id, newId);
@@ -405,6 +457,7 @@ function Canvas() {
               italic: false,
               underline: false,
               strikethrough: false,
+              groupId: cell.groupId ? groupIdMap.get(cell.groupId) : undefined,
             };
           });
 
@@ -528,6 +581,64 @@ function Canvas() {
           left: 0,
         }}
       >
+        {/* Grid rendering */}
+        {gridEnabled && (
+          <svg
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              pointerEvents: 'none',
+              zIndex: 0,
+              overflow: 'visible',
+            }}
+          >
+            <defs>
+              <pattern
+                id="grid-pattern"
+                width={gridSize * 4}
+                height={gridSize * 4}
+                patternUnits="userSpaceOnUse"
+              >
+                {/* Vertical lines */}
+                {[0, 1, 2, 3].map((i) => (
+                  <line
+                    key={`v-${i}`}
+                    x1={i * gridSize}
+                    y1={0}
+                    x2={i * gridSize}
+                    y2={gridSize * 4}
+                    stroke={gridColor}
+                    strokeOpacity={gridOpacity}
+                    strokeWidth={i === 0 ? 2 : 1}
+                    strokeDasharray={i === 0 ? 'none' : '4 4'}
+                  />
+                ))}
+                {/* Horizontal lines */}
+                {[0, 1, 2, 3].map((i) => (
+                  <line
+                    key={`h-${i}`}
+                    x1={0}
+                    y1={i * gridSize}
+                    x2={gridSize * 4}
+                    y2={i * gridSize}
+                    stroke={gridColor}
+                    strokeOpacity={gridOpacity}
+                    strokeWidth={i === 0 ? 2 : 1}
+                    strokeDasharray={i === 0 ? 'none' : '4 4'}
+                  />
+                ))}
+              </pattern>
+            </defs>
+            <rect
+              x={gridBounds.minX}
+              y={gridBounds.minY}
+              width={gridBounds.maxX - gridBounds.minX}
+              height={gridBounds.maxY - gridBounds.minY}
+              fill="url(#grid-pattern)"
+            />
+          </svg>
+        )}
         {connections.map((connection) => (
           <ConnectionComponent
             key={connection.id}

@@ -78,6 +78,10 @@ export interface CanvasState {
   defaultCellStyle: DefaultCellStyle;
   history: HistoryState[];
   historyIndex: number;
+  gridEnabled: boolean;
+  gridSize: number;
+  gridColor: string;
+  gridOpacity: number;
 }
 
 export interface HistoryState {

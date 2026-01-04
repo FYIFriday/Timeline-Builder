@@ -28,6 +28,10 @@ interface StoreState extends CanvasState {
   resetState: () => void;
   groupCells: (cellIds: string[]) => void;
   ungroupCells: (cellIds: string[]) => void;
+  setGridEnabled: (enabled: boolean) => void;
+  setGridSize: (size: number) => void;
+  setGridColor: (color: string) => void;
+  setGridOpacity: (opacity: number) => void;
 }
 
 const DEFAULT_CELL_COLOR = '#fffdf5';
@@ -71,6 +75,10 @@ const initialState: CanvasState = {
   defaultCellStyle: DEFAULT_CELL_STYLE,
   history: [],
   historyIndex: -1,
+  gridEnabled: false,
+  gridSize: 50,
+  gridColor: '#cccccc',
+  gridOpacity: 0.5,
 };
 
 export const useStore = create<StoreState>((set, get) => ({
@@ -307,6 +315,22 @@ export const useStore = create<StoreState>((set, get) => ({
       saveHistoryHelper(newState);
       return newState;
     });
+  },
+
+  setGridEnabled: (enabled) => {
+    set({ gridEnabled: enabled });
+  },
+
+  setGridSize: (size) => {
+    set({ gridSize: Math.max(10, Math.min(200, size)) });
+  },
+
+  setGridColor: (color) => {
+    set({ gridColor: color });
+  },
+
+  setGridOpacity: (opacity) => {
+    set({ gridOpacity: Math.max(0, Math.min(1, opacity)) });
   },
 }));
 
