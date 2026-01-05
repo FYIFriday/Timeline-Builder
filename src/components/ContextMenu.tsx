@@ -685,21 +685,34 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal, onPinLocation }: Cont
         <MenuItem onClick={() => handleConnectionStyle('Bold')} disabled={!hasConnectionsBetweenSelected}>Bold</MenuItem>
         <MenuItem onClick={() => handleConnectionStyle('Arrow')} disabled={!hasConnectionsBetweenSelected}>Arrow</MenuItem>
         <MenuDivider />
-        <MenuSubmenu label="Change weight" disabled={!hasConnectionsBetweenSelected}>
-          <MenuItem onClick={() => handleConnectionWeight(0.5)} disabled={!hasConnectionsBetweenSelected}>0.5px</MenuItem>
-          <MenuItem onClick={() => handleConnectionWeight(1)} disabled={!hasConnectionsBetweenSelected}>1px</MenuItem>
-          <MenuItem onClick={() => handleConnectionWeight(1.5)} disabled={!hasConnectionsBetweenSelected}>1.5px</MenuItem>
-          <MenuItem onClick={() => handleConnectionWeight(2)} disabled={!hasConnectionsBetweenSelected}>2px</MenuItem>
-          <MenuItem onClick={() => handleConnectionWeight(2.5)} disabled={!hasConnectionsBetweenSelected}>2.5px</MenuItem>
-          <MenuItem onClick={() => handleConnectionWeight(3)} disabled={!hasConnectionsBetweenSelected}>3px</MenuItem>
-          <MenuItem onClick={() => handleConnectionWeight(4)} disabled={!hasConnectionsBetweenSelected}>4px</MenuItem>
-          <MenuItem onClick={() => handleConnectionWeight(5)} disabled={!hasConnectionsBetweenSelected}>5px</MenuItem>
-          <MenuItem onClick={() => handleConnectionWeight(6)} disabled={!hasConnectionsBetweenSelected}>6px</MenuItem>
-          <MenuItem onClick={() => handleConnectionWeight(8)} disabled={!hasConnectionsBetweenSelected}>8px</MenuItem>
-          <MenuItem onClick={() => handleConnectionWeight(10)} disabled={!hasConnectionsBetweenSelected}>10px</MenuItem>
-          <MenuItem onClick={() => handleConnectionWeight(12)} disabled={!hasConnectionsBetweenSelected}>12px</MenuItem>
-        </MenuSubmenu>
         <MenuItem onClick={() => handleColorPicker('connection')} disabled={!hasConnectionsBetweenSelected}>Change color</MenuItem>
+      </MenuSubmenu>
+
+      <MenuSubmenu label="Connection thickness" disabled={!hasConnectionsBetweenSelected}>
+        <MenuItem onClick={() => handleConnectionWeight(1)} disabled={!hasConnectionsBetweenSelected}>1px</MenuItem>
+        <MenuItem onClick={() => handleConnectionWeight(2)} disabled={!hasConnectionsBetweenSelected}>2px</MenuItem>
+        <MenuItem onClick={() => handleConnectionWeight(3)} disabled={!hasConnectionsBetweenSelected}>3px</MenuItem>
+        <MenuItem onClick={() => handleConnectionWeight(4)} disabled={!hasConnectionsBetweenSelected}>4px</MenuItem>
+        <MenuItem onClick={() => handleConnectionWeight(5)} disabled={!hasConnectionsBetweenSelected}>5px</MenuItem>
+        <MenuItem onClick={() => handleConnectionWeight(6)} disabled={!hasConnectionsBetweenSelected}>6px</MenuItem>
+        <MenuItem onClick={() => handleConnectionWeight(7)} disabled={!hasConnectionsBetweenSelected}>7px</MenuItem>
+        <MenuItem onClick={() => handleConnectionWeight(8)} disabled={!hasConnectionsBetweenSelected}>8px</MenuItem>
+        <MenuItem onClick={() => handleConnectionWeight(9)} disabled={!hasConnectionsBetweenSelected}>9px</MenuItem>
+        <MenuItem onClick={() => handleConnectionWeight(10)} disabled={!hasConnectionsBetweenSelected}>10px</MenuItem>
+        <MenuItem onClick={() => handleConnectionWeight(11)} disabled={!hasConnectionsBetweenSelected}>11px</MenuItem>
+        <MenuItem onClick={() => handleConnectionWeight(12)} disabled={!hasConnectionsBetweenSelected}>12px</MenuItem>
+        <MenuItem onClick={() => handleConnectionWeight(13)} disabled={!hasConnectionsBetweenSelected}>13px</MenuItem>
+        <MenuItem onClick={() => handleConnectionWeight(14)} disabled={!hasConnectionsBetweenSelected}>14px</MenuItem>
+        <MenuItem onClick={() => handleConnectionWeight(15)} disabled={!hasConnectionsBetweenSelected}>15px</MenuItem>
+        <MenuItem onClick={() => handleConnectionWeight(16)} disabled={!hasConnectionsBetweenSelected}>16px</MenuItem>
+        <MenuItem onClick={() => handleConnectionWeight(17)} disabled={!hasConnectionsBetweenSelected}>17px</MenuItem>
+        <MenuItem onClick={() => handleConnectionWeight(18)} disabled={!hasConnectionsBetweenSelected}>18px</MenuItem>
+        <MenuItem onClick={() => handleConnectionWeight(19)} disabled={!hasConnectionsBetweenSelected}>19px</MenuItem>
+        <MenuItem onClick={() => handleConnectionWeight(20)} disabled={!hasConnectionsBetweenSelected}>20px</MenuItem>
+        <MenuItem onClick={() => handleConnectionWeight(21)} disabled={!hasConnectionsBetweenSelected}>21px</MenuItem>
+        <MenuItem onClick={() => handleConnectionWeight(22)} disabled={!hasConnectionsBetweenSelected}>22px</MenuItem>
+        <MenuItem onClick={() => handleConnectionWeight(23)} disabled={!hasConnectionsBetweenSelected}>23px</MenuItem>
+        <MenuItem onClick={() => handleConnectionWeight(24)} disabled={!hasConnectionsBetweenSelected}>24px</MenuItem>
       </MenuSubmenu>
 
       <MenuSubmenu label="Border">

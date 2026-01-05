@@ -423,30 +423,83 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
       // Paste as plain text only
       pastedContent = clipboardData.getData('text/plain');
     } else {
-      // Get HTML and clean it
+      // Try to get HTML first
       let html = clipboardData.getData('text/html');
 
       if (html) {
-        // Create a temporary div to clean the HTML
+        // Create a temporary div to parse the HTML
         const temp = document.createElement('div');
         temp.innerHTML = html;
 
-        // Remove background colors, text colors, and other cell-specific styling
-        const allElements = temp.querySelectorAll('*');
-        allElements.forEach((el) => {
-          if (el instanceof HTMLElement) {
-            // Remove background color
-            el.style.backgroundColor = '';
-            // Remove text color so it inherits from destination cell
-            el.style.color = '';
-            // Remove any inline block/cell styling
-            el.style.removeProperty('background-color');
-            el.style.removeProperty('background');
-            el.style.removeProperty('color');
+        // Function to recursively extract text with inline formatting only
+        const extractFormattedText = (node: Node): string => {
+          if (node.nodeType === Node.TEXT_NODE) {
+            return node.textContent || '';
           }
-        });
 
-        pastedContent = temp.innerHTML;
+          if (node.nodeType === Node.ELEMENT_NODE) {
+            const element = node as HTMLElement;
+            const tagName = element.tagName.toLowerCase();
+
+            // Skip these elements entirely (including their content)
+            if (['style', 'script', 'meta', 'link'].includes(tagName)) {
+              return '';
+            }
+
+            // Preserve these inline formatting tags
+            if (['b', 'strong', 'i', 'em', 'u', 'span', 'mark'].includes(tagName)) {
+              let content = '';
+              for (let i = 0; i < element.childNodes.length; i++) {
+                content += extractFormattedText(element.childNodes[i]);
+              }
+
+              // Only wrap in tag if there's actual content
+              if (content.trim()) {
+                // Normalize tags: strong->b, em->i
+                let normalizedTag = tagName;
+                if (tagName === 'strong') normalizedTag = 'b';
+                if (tagName === 'em') normalizedTag = 'i';
+                if (tagName === 'mark') normalizedTag = 'mark';
+
+                // For span, just return content without wrapper
+                if (tagName === 'span') {
+                  return content;
+                }
+
+                return `<${normalizedTag}>${content}</${normalizedTag}>`;
+              }
+              return content;
+            }
+
+            // For block elements or line breaks, just get text
+            if (['br'].includes(tagName)) {
+              return '\n';
+            }
+
+            // For all other elements (div, p, etc), just extract text recursively
+            let content = '';
+            for (let i = 0; i < element.childNodes.length; i++) {
+              content += extractFormattedText(element.childNodes[i]);
+            }
+            return content;
+          }
+
+          return '';
+        };
+
+        // Extract the formatted text
+        let extracted = extractFormattedText(temp);
+
+        // Trim and normalize whitespace
+        extracted = extracted.trim();
+
+        // Replace multiple newlines with a single space (since we're in inline content)
+        extracted = extracted.replace(/\n+/g, ' ');
+
+        // Replace multiple spaces with single space
+        extracted = extracted.replace(/\s+/g, ' ');
+
+        pastedContent = extracted;
       } else {
         // Fallback to plain text
         pastedContent = clipboardData.getData('text/plain');

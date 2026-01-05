@@ -904,6 +904,12 @@ function ConnectionContextMenu({
     onClose();
   };
 
+  const handleThickness = (thickness: number) => {
+    updateConnection(connectionId, { strokeWidth: thickness });
+    saveHistory();
+    onClose();
+  };
+
   return (
     <div
       ref={menuRef}
@@ -925,6 +931,33 @@ function ConnectionContextMenu({
         <MenuItem onClick={() => handleStyle('Solid')}>Solid</MenuItem>
         <MenuItem onClick={() => handleStyle('Bold')}>Bold</MenuItem>
         <MenuItem onClick={() => handleStyle('Arrow')}>Arrow</MenuItem>
+        <MenuDivider />
+        <ConnectionMenuSubmenu label="Thickness">
+          <MenuItem onClick={() => handleThickness(1)}>1px</MenuItem>
+          <MenuItem onClick={() => handleThickness(2)}>2px</MenuItem>
+          <MenuItem onClick={() => handleThickness(3)}>3px</MenuItem>
+          <MenuItem onClick={() => handleThickness(4)}>4px</MenuItem>
+          <MenuItem onClick={() => handleThickness(5)}>5px</MenuItem>
+          <MenuItem onClick={() => handleThickness(6)}>6px</MenuItem>
+          <MenuItem onClick={() => handleThickness(7)}>7px</MenuItem>
+          <MenuItem onClick={() => handleThickness(8)}>8px</MenuItem>
+          <MenuItem onClick={() => handleThickness(9)}>9px</MenuItem>
+          <MenuItem onClick={() => handleThickness(10)}>10px</MenuItem>
+          <MenuItem onClick={() => handleThickness(11)}>11px</MenuItem>
+          <MenuItem onClick={() => handleThickness(12)}>12px</MenuItem>
+          <MenuItem onClick={() => handleThickness(13)}>13px</MenuItem>
+          <MenuItem onClick={() => handleThickness(14)}>14px</MenuItem>
+          <MenuItem onClick={() => handleThickness(15)}>15px</MenuItem>
+          <MenuItem onClick={() => handleThickness(16)}>16px</MenuItem>
+          <MenuItem onClick={() => handleThickness(17)}>17px</MenuItem>
+          <MenuItem onClick={() => handleThickness(18)}>18px</MenuItem>
+          <MenuItem onClick={() => handleThickness(19)}>19px</MenuItem>
+          <MenuItem onClick={() => handleThickness(20)}>20px</MenuItem>
+          <MenuItem onClick={() => handleThickness(21)}>21px</MenuItem>
+          <MenuItem onClick={() => handleThickness(22)}>22px</MenuItem>
+          <MenuItem onClick={() => handleThickness(23)}>23px</MenuItem>
+          <MenuItem onClick={() => handleThickness(24)}>24px</MenuItem>
+        </ConnectionMenuSubmenu>
         <MenuDivider />
         <MenuItem onClick={handleReverseDirection}>Reverse Direction</MenuItem>
         <MenuDivider />
@@ -959,6 +992,110 @@ function MenuItem({ onClick, children }: { onClick: () => void; children: React.
 
 function MenuDivider() {
   return <div style={{ height: 1, backgroundColor: '#e0e0e0', margin: '4px 0' }} />;
+}
+
+function ConnectionMenuSubmenu({ label, children }: { label: string; children: React.ReactNode }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const submenuRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [submenuPosition, setSubmenuPosition] = useState<{ left?: number; top?: number; maxHeight?: number }>({});
+
+  useEffect(() => {
+    if (isOpen && submenuRef.current && containerRef.current) {
+      const submenuRect = submenuRef.current.getBoundingClientRect();
+      const containerRect = containerRef.current.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      const margin = 10;
+
+      let position: { left?: number; top?: number; maxHeight?: number } = {};
+
+      // Position to the right of menu item
+      let targetLeft = containerRect.right;
+      let targetTop = containerRect.top;
+
+      // Check if submenu would overflow right edge
+      if (targetLeft + submenuRect.width > viewportWidth - margin) {
+        targetLeft = containerRect.left - submenuRect.width;
+        if (targetLeft < margin) {
+          targetLeft = margin;
+        }
+      }
+
+      position.left = targetLeft;
+
+      // Calculate available height
+      const availableHeightBelow = viewportHeight - containerRect.top - margin;
+      position.maxHeight = Math.min(600, Math.max(150, availableHeightBelow));
+
+      // If submenu would overflow bottom, shift it up
+      const estimatedSubmenuHeight = Math.min(submenuRect.height, position.maxHeight);
+      if (containerRect.top + estimatedSubmenuHeight > viewportHeight - margin) {
+        const overflow = (containerRect.top + estimatedSubmenuHeight) - (viewportHeight - margin);
+        targetTop = containerRect.top - overflow;
+
+        if (targetTop < margin) {
+          targetTop = margin;
+          position.maxHeight = Math.min(600, viewportHeight - (2 * margin));
+        }
+      }
+
+      position.top = targetTop;
+      setSubmenuPosition(position);
+    }
+  }, [isOpen]);
+
+  return (
+    <div
+      ref={containerRef}
+      style={{ position: 'relative' }}
+      onMouseEnter={() => setIsOpen(true)}
+      onMouseLeave={() => setIsOpen(false)}
+    >
+      <div
+        style={{
+          padding: '8px 16px',
+          cursor: 'pointer',
+          fontSize: 14,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '24px',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.backgroundColor = '#f0f0f0';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.backgroundColor = 'transparent';
+        }}
+      >
+        <span>{label}</span>
+        <span style={{ fontSize: 10 }}>▶</span>
+      </div>
+      {isOpen && (
+        <div
+          ref={submenuRef}
+          style={{
+            position: 'fixed',
+            left: submenuPosition.left,
+            top: submenuPosition.top,
+            backgroundColor: 'white',
+            border: '1px solid #ccc',
+            borderRadius: 4,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+            zIndex: 10001,
+            minWidth: 120,
+            maxHeight: submenuPosition.maxHeight,
+            overflowY: 'auto',
+            padding: '4px 0',
+          }}
+          onWheel={(e) => e.stopPropagation()}
+        >
+          {children}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default Canvas;

@@ -151,6 +151,13 @@ function App() {
               colorPresets: parsed.colorPresets,
               defaultCellStyle: parsed.defaultCellStyle,
               pinnedLocations: parsed.pinnedLocations || [],
+              gridEnabled: parsed.gridEnabled !== undefined ? parsed.gridEnabled : false,
+              gridSize: parsed.gridSize || 50,
+              gridColor: parsed.gridColor || '#cccccc',
+              gridOpacity: parsed.gridOpacity !== undefined ? parsed.gridOpacity : 0.5,
+              offsetX: parsed.offsetX !== undefined ? parsed.offsetX : 0,
+              offsetY: parsed.offsetY !== undefined ? parsed.offsetY : 0,
+              zoom: parsed.zoom || 1,
             });
             // Set window title to indicate recovered work
             await window.electron.setWindowTitle('*Recovered* - Threadsetter');
@@ -867,6 +874,13 @@ function App() {
         colorPresets: state.colorPresets,
         defaultCellStyle: state.defaultCellStyle,
         pinnedLocations: state.pinnedLocations,
+        gridEnabled: state.gridEnabled,
+        gridSize: state.gridSize,
+        gridColor: state.gridColor,
+        gridOpacity: state.gridOpacity,
+        offsetX: state.offsetX,
+        offsetY: state.offsetY,
+        zoom: state.zoom,
       });
       if (window.electron) {
         await window.electron.saveBackup(data);

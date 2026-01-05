@@ -241,14 +241,15 @@ function SettingsModal({ onClose }: SettingsModalProps) {
         style={{
           backgroundColor: '#ffffff',
           borderRadius: 8,
-          padding: 24,
           maxWidth: 600,
           maxHeight: '80vh',
-          overflow: 'auto',
           boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, padding: '24px 24px 0 24px' }}>
           <h2 style={{ margin: 0, fontSize: 20 }}>Settings</h2>
           <button
             onClick={(e) => {
@@ -266,7 +267,7 @@ function SettingsModal({ onClose }: SettingsModalProps) {
           </button>
         </div>
 
-        <div style={{ display: 'flex', gap: 8, marginBottom: 16, borderBottom: '1px solid #ccc' }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16, borderBottom: '1px solid #ccc', padding: '0 24px' }}>
           <button
             onClick={() => setActiveTab('default')}
             style={{
@@ -321,6 +322,8 @@ function SettingsModal({ onClose }: SettingsModalProps) {
           </button>
         </div>
 
+        {/* Scrollable content area */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '0 24px', marginBottom: 16 }}>
         {activeTab === 'default' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <label>
@@ -958,9 +961,19 @@ function SettingsModal({ onClose }: SettingsModalProps) {
           </a>
         </div>
 
-        {/* Save/Cancel buttons - only show on tabs other than User Guide */}
+        </div>
+        {/* End scrollable content area */}
+
+        {/* Save/Cancel buttons - sticky footer - only show on tabs other than User Guide */}
         {activeTab !== 'guide' && (
-          <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
+          <div style={{
+            display: 'flex',
+            gap: 8,
+            padding: '16px 24px',
+            justifyContent: 'flex-end',
+            borderTop: '1px solid #e0e0e0',
+            backgroundColor: '#ffffff'
+          }}>
             <button
               onClick={onClose}
               style={{
