@@ -110,12 +110,6 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
         editableRef.current.innerHTML = editHtml;
       }
       editableRef.current.focus();
-      // Select all content
-      const range = document.createRange();
-      const sel = window.getSelection();
-      range.selectNodeContents(editableRef.current);
-      sel?.removeAllRanges();
-      sel?.addRange(range);
 
       // Listen for selection changes to update font size display and alignment
       const handleSelectionChange = () => {
@@ -136,6 +130,17 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
       };
     }
   }, [isEditing, editHtml]);
+
+  // Select all content only when first entering edit mode
+  useEffect(() => {
+    if (isEditing && editableRef.current) {
+      const range = document.createRange();
+      const sel = window.getSelection();
+      range.selectNodeContents(editableRef.current);
+      sel?.removeAllRanges();
+      sel?.addRange(range);
+    }
+  }, [isEditing]); // Only run when isEditing changes, not when editHtml changes
 
   const handleCellClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -521,9 +526,18 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
       } else {
         // Insert as HTML
         const fragment = range.createContextualFragment(pastedContent);
+        const lastNode = fragment.lastChild;
         range.insertNode(fragment);
+
+        // Position cursor after the inserted content
+        if (lastNode) {
+          range.setStartAfter(lastNode);
+          range.setEndAfter(lastNode);
+        }
       }
 
+      // Collapse the range to a cursor (no selection)
+      range.collapse(true);
       selection.removeAllRanges();
       selection.addRange(range);
 
