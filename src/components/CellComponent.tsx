@@ -74,6 +74,12 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
   const [connectionTargetId, setConnectionTargetId] = useState<string | null>(null);
   const [connectionTargetPinIndex, setConnectionTargetPinIndex] = useState<number | undefined>(undefined);
   const [connectionFromPinIndex, setConnectionFromPinIndex] = useState<number | undefined>(undefined);
+  const [showTextColorPicker, setShowTextColorPicker] = useState(false);
+  const [showHighlightColorPicker, setShowHighlightColorPicker] = useState(false);
+  const [showTextCustomPicker, setShowTextCustomPicker] = useState(false);
+  const [showHighlightCustomPicker, setShowHighlightCustomPicker] = useState(false);
+  const [selectedTextColor, setSelectedTextColor] = useState('#000000');
+  const [selectedHighlightColor, setSelectedHighlightColor] = useState('#ffff00');
 
   // Use refs to avoid stale closures in event handlers
   const dragStartRef = useRef({ x: 0, y: 0 });
@@ -94,6 +100,7 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
     addConnection,
     cells,
     defaultCellStyle,
+    colorPresets,
   } = useStore();
 
   useEffect(() => {
@@ -402,6 +409,78 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
     saveHistory();
   };
 
+  const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
+    const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+    const cmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
+    const pasteWithoutFormatting = e.shiftKey && cmdOrCtrl;
+
+    e.preventDefault();
+
+    const clipboardData = e.clipboardData;
+    let pastedContent = '';
+
+    if (pasteWithoutFormatting) {
+      // Paste as plain text only
+      pastedContent = clipboardData.getData('text/plain');
+    } else {
+      // Get HTML and clean it
+      let html = clipboardData.getData('text/html');
+
+      if (html) {
+        // Create a temporary div to clean the HTML
+        const temp = document.createElement('div');
+        temp.innerHTML = html;
+
+        // Remove background colors, text colors, and other cell-specific styling
+        const allElements = temp.querySelectorAll('*');
+        allElements.forEach((el) => {
+          if (el instanceof HTMLElement) {
+            // Remove background color
+            el.style.backgroundColor = '';
+            // Remove text color so it inherits from destination cell
+            el.style.color = '';
+            // Remove any inline block/cell styling
+            el.style.removeProperty('background-color');
+            el.style.removeProperty('background');
+            el.style.removeProperty('color');
+          }
+        });
+
+        pastedContent = temp.innerHTML;
+      } else {
+        // Fallback to plain text
+        pastedContent = clipboardData.getData('text/plain');
+      }
+    }
+
+    // Insert the cleaned content at cursor position
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0);
+      range.deleteContents();
+
+      if (pasteWithoutFormatting) {
+        // Insert as plain text
+        const textNode = document.createTextNode(pastedContent);
+        range.insertNode(textNode);
+        range.setStartAfter(textNode);
+        range.setEndAfter(textNode);
+      } else {
+        // Insert as HTML
+        const fragment = range.createContextualFragment(pastedContent);
+        range.insertNode(fragment);
+      }
+
+      selection.removeAllRanges();
+      selection.addRange(range);
+
+      // Trigger input event to save changes
+      if (editableRef.current) {
+        setEditHtml(editableRef.current.innerHTML);
+      }
+    }
+  };
+
   const handleContentKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Escape') {
       e.preventDefault();
@@ -416,6 +495,12 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
 
     const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
     const cmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
+
+    // Select All - let browser handle it naturally for contenteditable
+    if (cmdOrCtrl && e.key === 'a') {
+      // Don't prevent default - let the browser select all text in the contenteditable
+      return;
+    }
 
     // Format shortcuts
     if (cmdOrCtrl && e.key === 'b') {
@@ -442,13 +527,45 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
   const applyTextColor = (color: string) => {
     if (!editableRef.current) return;
     editableRef.current.focus();
+
+    // Restore saved selection if it exists
+    if (savedSelectionRef.current) {
+      const sel = window.getSelection();
+      if (sel) {
+        sel.removeAllRanges();
+        sel.addRange(savedSelectionRef.current);
+      }
+    }
+
     document.execCommand('foreColor', false, color);
+
+    // Update the HTML state
+    setEditHtml(editableRef.current.innerHTML);
   };
 
   const applyBackgroundColor = (color: string) => {
     if (!editableRef.current) return;
     editableRef.current.focus();
-    document.execCommand('backColor', false, color);
+
+    // Restore saved selection if it exists
+    if (savedSelectionRef.current) {
+      const sel = window.getSelection();
+      if (sel) {
+        sel.removeAllRanges();
+        sel.addRange(savedSelectionRef.current);
+      }
+    }
+
+    // Use hiliteColor for better browser compatibility
+    // Try both commands as different browsers support different ones
+    try {
+      document.execCommand('hiliteColor', false, color);
+    } catch (e) {
+      document.execCommand('backColor', false, color);
+    }
+
+    // Update the HTML state
+    setEditHtml(editableRef.current.innerHTML);
   };
 
   const applyAlignment = (alignment: 'left' | 'center' | 'right' | 'justify') => {
@@ -1064,109 +1181,325 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
               S
             </button>
             <div style={{ width: 1, backgroundColor: '#ccc' }} />
-            <button
-              onMouseDown={(e) => {
-                e.preventDefault();
-                const input = document.createElement('input');
-                input.type = 'color';
-                input.value = '#000000';
-                input.style.position = 'absolute';
-                input.style.opacity = '0';
-                input.style.pointerEvents = 'none';
-                document.body.appendChild(input);
-
-                let hasChanged = false;
-                input.onchange = (event) => {
-                  hasChanged = true;
-                  const color = (event.target as HTMLInputElement).value;
-                  applyTextColor(color);
-                  setTimeout(() => {
-                    if (document.body.contains(input)) {
-                      document.body.removeChild(input);
-                    }
-                  }, 50);
-                };
-
-                // Also handle when color picker is closed without selecting
-                input.onblur = () => {
-                  setTimeout(() => {
-                    if (document.body.contains(input)) {
-                      document.body.removeChild(input);
-                    }
-                  }, 100);
-                };
-
-                // Trigger click after a brief delay to ensure it's in the DOM
-                setTimeout(() => input.click(), 10);
-              }}
-              style={{
-                padding: '4px 8px',
-                border: '1px solid #ccc',
-                borderRadius: 3,
-                backgroundColor: '#fff',
-                cursor: 'pointer',
-                fontSize: '14px',
-                fontWeight: 'bold',
-              }}
-              title="Text Color"
-            >
-              A
-            </button>
-            <button
-              onMouseDown={(e) => {
-                e.preventDefault();
-                const input = document.createElement('input');
-                input.type = 'color';
-                input.value = '#ffff00';
-                input.style.position = 'absolute';
-                input.style.opacity = '0';
-                input.style.pointerEvents = 'none';
-                document.body.appendChild(input);
-
-                let hasChanged = false;
-                input.onchange = (event) => {
-                  hasChanged = true;
-                  const color = (event.target as HTMLInputElement).value;
-                  applyBackgroundColor(color);
-                  setTimeout(() => {
-                    if (document.body.contains(input)) {
-                      document.body.removeChild(input);
-                    }
-                  }, 50);
-                };
-
-                // Also handle when color picker is closed without selecting
-                input.onblur = () => {
-                  setTimeout(() => {
-                    if (document.body.contains(input)) {
-                      document.body.removeChild(input);
-                    }
-                  }, 100);
-                };
-
-                // Trigger click after a brief delay to ensure it's in the DOM
-                setTimeout(() => input.click(), 10);
-              }}
-              style={{
-                padding: '4px 8px',
-                border: '1px solid #ccc',
-                borderRadius: 3,
-                backgroundColor: '#fff',
-                cursor: 'pointer',
-                fontSize: '14px',
-                fontWeight: 'bold',
-                position: 'relative',
-              }}
-              title="Text Highlight"
-            >
-              <span style={{
-                backgroundColor: '#ffff00',
-                padding: '2px 4px',
-                borderRadius: 2,
-              }}>
-                H
-              </span>
-            </button>
+            <div style={{ position: 'relative' }}>
+              <button
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  // Save current selection
+                  const sel = window.getSelection();
+                  if (sel && sel.rangeCount > 0) {
+                    savedSelectionRef.current = sel.getRangeAt(0).cloneRange();
+                  }
+                  setShowTextColorPicker(!showTextColorPicker);
+                }}
+                style={{
+                  padding: '4px 8px',
+                  border: '1px solid #ccc',
+                  borderRadius: 3,
+                  backgroundColor: '#fff',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 'bold',
+                }}
+                title="Text Color"
+              >
+                A
+              </button>
+              {showTextColorPicker && !showTextCustomPicker && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 30,
+                    left: 0,
+                    backgroundColor: 'white',
+                    border: '1px solid #ccc',
+                    borderRadius: 4,
+                    padding: 8,
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                    zIndex: 10000,
+                    minWidth: 180,
+                  }}
+                >
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+                    {colorPresets.map((preset) => (
+                      <button
+                        key={preset.name}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          applyTextColor(preset.textColor);
+                          setShowTextColorPicker(false);
+                        }}
+                        style={{
+                          width: 32,
+                          height: 32,
+                          backgroundColor: preset.textColor,
+                          border: '2px solid #ccc',
+                          borderRadius: 4,
+                          cursor: 'pointer',
+                        }}
+                        title={preset.name}
+                      />
+                    ))}
+                    <button
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        setShowTextCustomPicker(true);
+                      }}
+                      style={{
+                        width: 32,
+                        height: 32,
+                        backgroundColor: '#f0f0f0',
+                        border: '2px dashed #999',
+                        borderRadius: 4,
+                        cursor: 'pointer',
+                        fontSize: 18,
+                        fontWeight: 'bold',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                      title="Custom Color"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              )}
+              {showTextColorPicker && showTextCustomPicker && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 30,
+                    left: 0,
+                    backgroundColor: 'white',
+                    border: '1px solid #ccc',
+                    borderRadius: 4,
+                    padding: 8,
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                    zIndex: 10000,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                  }}
+                >
+                  <input
+                    type="color"
+                    value={selectedTextColor}
+                    onChange={(e) => setSelectedTextColor(e.target.value)}
+                    style={{
+                      width: 60,
+                      height: 40,
+                      border: '1px solid #ccc',
+                      borderRadius: 3,
+                      cursor: 'pointer',
+                    }}
+                  />
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <button
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        setShowTextCustomPicker(false);
+                      }}
+                      style={{
+                        flex: 1,
+                        padding: '6px 12px',
+                        border: '1px solid #ccc',
+                        borderRadius: 3,
+                        backgroundColor: '#fff',
+                        cursor: 'pointer',
+                        fontSize: 12,
+                      }}
+                    >
+                      Back
+                    </button>
+                    <button
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        applyTextColor(selectedTextColor);
+                        setShowTextColorPicker(false);
+                        setShowTextCustomPicker(false);
+                      }}
+                      style={{
+                        flex: 1,
+                        padding: '6px 12px',
+                        border: '1px solid #3b82f6',
+                        borderRadius: 3,
+                        backgroundColor: '#3b82f6',
+                        color: 'white',
+                        cursor: 'pointer',
+                        fontSize: 12,
+                        fontWeight: 'bold',
+                      }}
+                    >
+                      Apply
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div style={{ position: 'relative' }}>
+              <button
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  // Save current selection
+                  const sel = window.getSelection();
+                  if (sel && sel.rangeCount > 0) {
+                    savedSelectionRef.current = sel.getRangeAt(0).cloneRange();
+                  }
+                  setShowHighlightColorPicker(!showHighlightColorPicker);
+                }}
+                style={{
+                  padding: '4px 8px',
+                  border: '1px solid #ccc',
+                  borderRadius: 3,
+                  backgroundColor: '#fff',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 'bold',
+                  position: 'relative',
+                }}
+                title="Text Highlight"
+              >
+                <span style={{
+                  backgroundColor: '#ffff00',
+                  padding: '2px 4px',
+                  borderRadius: 2,
+                }}>
+                  H
+                </span>
+              </button>
+              {showHighlightColorPicker && !showHighlightCustomPicker && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 30,
+                    left: 0,
+                    backgroundColor: 'white',
+                    border: '1px solid #ccc',
+                    borderRadius: 4,
+                    padding: 8,
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                    zIndex: 10000,
+                    minWidth: 180,
+                  }}
+                >
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+                    {colorPresets.map((preset) => (
+                      <button
+                        key={preset.name}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          applyBackgroundColor(preset.bgColor);
+                          setShowHighlightColorPicker(false);
+                        }}
+                        style={{
+                          width: 32,
+                          height: 32,
+                          backgroundColor: preset.bgColor,
+                          border: '2px solid #ccc',
+                          borderRadius: 4,
+                          cursor: 'pointer',
+                        }}
+                        title={preset.name}
+                      />
+                    ))}
+                    <button
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        setShowHighlightCustomPicker(true);
+                      }}
+                      style={{
+                        width: 32,
+                        height: 32,
+                        backgroundColor: '#f0f0f0',
+                        border: '2px dashed #999',
+                        borderRadius: 4,
+                        cursor: 'pointer',
+                        fontSize: 18,
+                        fontWeight: 'bold',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                      title="Custom Color"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              )}
+              {showHighlightColorPicker && showHighlightCustomPicker && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 30,
+                    left: 0,
+                    backgroundColor: 'white',
+                    border: '1px solid #ccc',
+                    borderRadius: 4,
+                    padding: 8,
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                    zIndex: 10000,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                  }}
+                >
+                  <input
+                    type="color"
+                    value={selectedHighlightColor}
+                    onChange={(e) => setSelectedHighlightColor(e.target.value)}
+                    style={{
+                      width: 60,
+                      height: 40,
+                      border: '1px solid #ccc',
+                      borderRadius: 3,
+                      cursor: 'pointer',
+                    }}
+                  />
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <button
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        setShowHighlightCustomPicker(false);
+                      }}
+                      style={{
+                        flex: 1,
+                        padding: '6px 12px',
+                        border: '1px solid #ccc',
+                        borderRadius: 3,
+                        backgroundColor: '#fff',
+                        cursor: 'pointer',
+                        fontSize: 12,
+                      }}
+                    >
+                      Back
+                    </button>
+                    <button
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        applyBackgroundColor(selectedHighlightColor);
+                        setShowHighlightColorPicker(false);
+                        setShowHighlightCustomPicker(false);
+                      }}
+                      style={{
+                        flex: 1,
+                        padding: '6px 12px',
+                        border: '1px solid #3b82f6',
+                        borderRadius: 3,
+                        backgroundColor: '#3b82f6',
+                        color: 'white',
+                        cursor: 'pointer',
+                        fontSize: 12,
+                        fontWeight: 'bold',
+                      }}
+                    >
+                      Apply
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
             <div style={{ width: 1, backgroundColor: '#ccc' }} />
             <button
               onMouseDown={(e) => {
@@ -1339,6 +1672,7 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
             onInput={handleContentInput}
             onBlur={handleContentBlur}
             onKeyDown={handleContentKeyDown}
+            onPaste={handlePaste}
             spellCheck={true}
             suppressContentEditableWarning
             style={{
