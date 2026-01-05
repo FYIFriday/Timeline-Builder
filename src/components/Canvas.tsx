@@ -90,7 +90,7 @@ function Canvas() {
   const handleWheel = useCallback(
     (e: WheelEvent) => {
       // Don't handle wheel events when modals/panels are open
-      if (showSettingsModal || showSearchPanel) return;
+      if (showSettingsModal || showSearchPanel || contextMenu) return;
 
       e.preventDefault();
 
@@ -119,7 +119,7 @@ function Canvas() {
         setOffset(offsetX - e.deltaX, offsetY - e.deltaY);
       }
     },
-    [zoom, offsetX, offsetY, setZoom, setOffset, showSettingsModal, showSearchPanel]
+    [zoom, offsetX, offsetY, setZoom, setOffset, showSettingsModal, showSearchPanel, contextMenu]
   );
 
   useEffect(() => {
@@ -526,8 +526,9 @@ function Canvas() {
                 id: `conn-${Date.now()}-${Math.random()}`,
                 fromCellId: newFromId,
                 toCellId: newToId,
-                color: '#000000',
-                style: 'Dashed',
+                color: defaultCellStyle.defaultConnectionColor,
+                style: defaultCellStyle.defaultConnectionStyle,
+                strokeWidth: defaultCellStyle.defaultConnectionThickness,
               });
             }
           });

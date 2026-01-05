@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useStore } from '../store';
 import { ColorPreset, DefaultCellStyle, PinnedLocation } from '../types';
 import { DEFAULT_COLOR_PRESETS, DEFAULT_CELL_STYLE } from '../store';
+import { Copy } from 'lucide-react';
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -173,6 +174,20 @@ function SettingsModal({ onClose }: SettingsModalProps) {
     [newPresets[index], newPresets[index + 1]] = [newPresets[index + 1], newPresets[index]];
     [newIndices[index], newIndices[index + 1]] = [newIndices[index + 1], newIndices[index]];
     setEditedPresets(newPresets);
+    setPresetIndices(newIndices);
+  };
+
+  const handleDuplicatePreset = (index: number) => {
+    const presetToDuplicate = editedPresets[index];
+    const newPreset = { ...presetToDuplicate, name: `${presetToDuplicate.name} (Copy)` };
+    const newPresets = [...editedPresets];
+    newPresets.splice(index + 1, 0, newPreset);
+    setEditedPresets(newPresets);
+
+    // Update indices array
+    const newIndices = [...presetIndices];
+    const maxIndex = Math.max(...newIndices, -1);
+    newIndices.splice(index + 1, 0, maxIndex + 1);
     setPresetIndices(newIndices);
   };
 
@@ -467,6 +482,56 @@ function SettingsModal({ onClose }: SettingsModalProps) {
               )}
             </div>
 
+            {/* Connection Defaults */}
+            <div style={{ borderTop: '2px solid #e5e7eb', marginTop: 16, paddingTop: 16 }}>
+              <h3 style={{ margin: '0 0 12px 0', fontSize: 16, fontWeight: 'bold' }}>Connection Defaults</h3>
+
+              <label>
+                <div style={{ marginBottom: 4, fontSize: 14, fontWeight: 'bold' }}>Default Connection Color</div>
+                <input
+                  type="color"
+                  value={editedDefault.defaultConnectionColor}
+                  onChange={(e) => setEditedDefault({ ...editedDefault, defaultConnectionColor: e.target.value })}
+                  style={{ width: '100%', height: 40, cursor: 'pointer' }}
+                />
+              </label>
+
+              <div style={{ marginTop: 12 }}>
+                <div style={{ marginBottom: 4, fontSize: 14, fontWeight: 'bold' }}>Default Connection Style</div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {(['Dotted', 'Dashed', 'Solid', 'Bold', 'Arrow'] as const).map((style) => (
+                    <button
+                      key={style}
+                      onClick={() => setEditedDefault({ ...editedDefault, defaultConnectionStyle: style })}
+                      style={{
+                        padding: '6px 12px',
+                        border: editedDefault.defaultConnectionStyle === style ? '2px solid #3b82f6' : '1px solid #ccc',
+                        borderRadius: 4,
+                        backgroundColor: editedDefault.defaultConnectionStyle === style ? '#eff6ff' : '#ffffff',
+                        cursor: 'pointer',
+                        fontSize: 13,
+                      }}
+                    >
+                      {style}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <label style={{ marginTop: 12, display: 'block' }}>
+                <div style={{ marginBottom: 4, fontSize: 14, fontWeight: 'bold' }}>Default Connection Thickness (px)</div>
+                <input
+                  type="number"
+                  value={editedDefault.defaultConnectionThickness}
+                  onChange={(e) => setEditedDefault({ ...editedDefault, defaultConnectionThickness: parseFloat(e.target.value) })}
+                  style={{ width: '100%', padding: 8, fontSize: 14 }}
+                  min="0.5"
+                  max="12"
+                  step="0.5"
+                />
+              </label>
+            </div>
+
             {/* Grid Settings */}
             <div style={{ borderTop: '2px solid #e5e7eb', marginTop: 16, paddingTop: 16 }}>
               <h3 style={{ margin: '0 0 12px 0', fontSize: 16, fontWeight: 'bold' }}>Grid Settings</h3>
@@ -546,6 +611,23 @@ function SettingsModal({ onClose }: SettingsModalProps) {
             {editedPresets.map((preset, index) => (
               <div key={index} style={{ border: '1px solid #ccc', padding: 12, borderRadius: 4, position: 'relative' }}>
                 <div style={{ position: 'absolute', top: 8, right: 8, display: 'flex', gap: 4 }}>
+                  <button
+                    onClick={() => handleDuplicatePreset(index)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: 14,
+                      color: '#3b82f6',
+                      padding: 4,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                    title="Duplicate style"
+                  >
+                    <Copy size={14} />
+                  </button>
                   <button
                     onClick={() => handleMovePresetUp(index)}
                     disabled={index === 0}

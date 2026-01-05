@@ -93,6 +93,7 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
     saveHistory,
     addConnection,
     cells,
+    defaultCellStyle,
   } = useStore();
 
   useEffect(() => {
@@ -772,8 +773,9 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
           id: `conn-${Date.now()}`,
           fromCellId: cell.id,
           toCellId: connectionTargetId,
-          color: '#000000',
-          style: 'Dashed' as const,
+          color: defaultCellStyle.defaultConnectionColor,
+          style: defaultCellStyle.defaultConnectionStyle,
+          strokeWidth: defaultCellStyle.defaultConnectionThickness,
           fromPinIndex: connectionFromPinIndex,
           toPinIndex: connectionTargetPinIndex,
         };
@@ -788,7 +790,7 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
     }
     setIsDragging(false);
     setIsResizing(false);
-  }, [isDragging, isResizing, isConnecting, connectionTargetId, connectionTargetPinIndex, connectionFromPinIndex, cell.id, addConnection, saveHistory, updateCell]);
+  }, [isDragging, isResizing, isConnecting, connectionTargetId, connectionTargetPinIndex, connectionFromPinIndex, cell.id, addConnection, saveHistory, updateCell, defaultCellStyle]);
 
   const handleMouseEnterForConnection = (targetCellId: string) => {
     if (isConnecting && targetCellId !== cell.id) {
@@ -990,7 +992,7 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
               display: 'flex',
               gap: '4px',
               boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-              zIndex: 1000,
+              zIndex: 9999,
             }}
           >
             <button

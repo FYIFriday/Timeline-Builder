@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { useStore } from '../store';
 import { Connection, Cell } from '../types';
 
@@ -114,8 +114,9 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal, onPinLocation }: Cont
           id: `conn-${Date.now()}-arrow-${i}`,
           fromCellId: originId,
           toCellId: selectedCellIds[i],
-          color: '#000000',
+          color: defaultCellStyle.defaultConnectionColor,
           style: 'Arrow',
+          strokeWidth: defaultCellStyle.defaultConnectionThickness,
         };
         addConnection(connection);
       }
@@ -126,8 +127,9 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal, onPinLocation }: Cont
             id: `conn-${Date.now()}-${i}-${j}`,
             fromCellId: selectedCellIds[i],
             toCellId: selectedCellIds[j],
-            color: '#000000',
+            color: defaultCellStyle.defaultConnectionColor,
             style,
+            strokeWidth: defaultCellStyle.defaultConnectionThickness,
           };
           addConnection(connection);
         }
@@ -656,14 +658,14 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal, onPinLocation }: Cont
           </MenuItem>
         ))}
       </MenuSubmenu>
-      <MenuItem onClick={handleAddToStyles} disabled={!hasCellsSelected}>
-        Add to Styles
-      </MenuItem>
 
       <MenuDivider />
 
       {/* Pin Location */}
       <MenuItem onClick={onPinLocation}>Pin Location</MenuItem>
+      <MenuItem onClick={handleAddToStyles} disabled={!hasCellsSelected}>
+        Add to Styles
+      </MenuItem>
 
       <MenuDivider />
 
@@ -819,30 +821,57 @@ function MenuDivider() {
 function MenuSubmenu({ label, children, disabled = false }: { label: string; children: React.ReactNode; disabled?: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
   const submenuRef = useRef<HTMLDivElement>(null);
-  const [submenuPosition, setSubmenuPosition] = useState<{ left?: string; right?: string; top?: number }>({ left: '100%', top: 0 });
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [submenuPosition, setSubmenuPosition] = useState<{ left?: number; right?: number; top?: number; maxHeight?: number }>({});
 
-  useEffect(() => {
-    if (isOpen && submenuRef.current) {
+  useLayoutEffect(() => {
+    if (isOpen && submenuRef.current && containerRef.current) {
       const submenuRect = submenuRef.current.getBoundingClientRect();
+      const containerRect = containerRef.current.getBoundingClientRect();
       const viewportWidth = window.innerWidth;
       const viewportHeight = window.innerHeight;
       const margin = 10;
 
-      let position: { left?: string; right?: string; top?: number } = { left: '100%', top: 0 };
+      let position: { left?: number; right?: number; top?: number; maxHeight?: number } = {};
 
-      if (submenuRect.right > viewportWidth - margin) {
-        position = { right: '100%', top: 0 };
-      }
+      // Calculate horizontal position (to the right of menu item)
+      let targetLeft = containerRect.right;
+      let targetTop = containerRect.top;
 
-      if (submenuRect.bottom > viewportHeight - margin) {
-        const overflow = submenuRect.bottom - (viewportHeight - margin);
-        position.top = -overflow;
-
-        const wouldBeTop = submenuRect.top - overflow;
-        if (wouldBeTop < margin) {
-          position.top = -(submenuRect.top - margin);
+      // Check if submenu would overflow right edge
+      if (targetLeft + submenuRect.width > viewportWidth - margin) {
+        // Position to the left instead
+        targetLeft = containerRect.left - submenuRect.width;
+        // If still overflows left edge, clamp to margin
+        if (targetLeft < margin) {
+          targetLeft = margin;
         }
       }
+
+      position.left = targetLeft;
+
+      // Calculate available height from menu item position to bottom of viewport
+      const availableHeightBelow = viewportHeight - containerRect.top - margin;
+
+      // Set maxHeight based on available space, capped at 600px
+      position.maxHeight = Math.min(600, Math.max(150, availableHeightBelow));
+
+      // If submenu would overflow bottom even with maxHeight, shift it up
+      const estimatedSubmenuHeight = Math.min(submenuRect.height, position.maxHeight);
+      if (containerRect.top + estimatedSubmenuHeight > viewportHeight - margin) {
+        // Calculate how much to shift up
+        const overflow = (containerRect.top + estimatedSubmenuHeight) - (viewportHeight - margin);
+        targetTop = containerRect.top - overflow;
+
+        // Make sure we don't go above the top
+        if (targetTop < margin) {
+          targetTop = margin;
+          // Recalculate maxHeight with new position
+          position.maxHeight = Math.min(600, viewportHeight - (2 * margin));
+        }
+      }
+
+      position.top = targetTop;
 
       setSubmenuPosition(position);
     }
@@ -850,6 +879,7 @@ function MenuSubmenu({ label, children, disabled = false }: { label: string; chi
 
   return (
     <div
+      ref={containerRef}
       style={{ position: 'relative' }}
       onMouseEnter={() => !disabled && setIsOpen(true)}
       onMouseLeave={() => setIsOpen(false)}
@@ -879,14 +909,37 @@ function MenuSubmenu({ label, children, disabled = false }: { label: string; chi
       {isOpen && (
         <div
           ref={submenuRef}
+          onWheel={(e) => {
+            // Stop event from reaching canvas
+            e.stopPropagation();
+            e.preventDefault();
+
+            // Manually handle scroll
+            const container = submenuRef.current;
+            if (container) {
+              container.scrollTop += e.deltaY;
+            }
+          }}
+          onMouseDown={(e) => {
+            // Prevent mousedown from bubbling to canvas
+            e.stopPropagation();
+          }}
+          onClick={(e) => {
+            // Prevent click from bubbling
+            e.stopPropagation();
+          }}
           style={{
-            position: 'absolute',
-            ...submenuPosition,
+            position: 'fixed',
+            left: submenuPosition.left,
+            right: submenuPosition.right,
+            top: submenuPosition.top,
             backgroundColor: 'white',
             border: '1px solid #ccc',
             borderRadius: 4,
             boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
             minWidth: 150,
+            maxHeight: submenuPosition.maxHeight || 600,
+            overflowY: 'auto',
             zIndex: 10001,
           }}
         >

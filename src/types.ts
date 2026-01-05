@@ -69,6 +69,9 @@ export interface DefaultCellStyle {
   fontSize: number;
   fontFamily: string;
   defaultDotSize: number;
+  defaultConnectionColor: string;
+  defaultConnectionStyle: 'Dotted' | 'Dashed' | 'Solid' | 'Bold' | 'Arrow';
+  defaultConnectionThickness: number;
 }
 
 export interface PinnedLocation {

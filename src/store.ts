@@ -67,6 +67,9 @@ const DEFAULT_CELL_STYLE: DefaultCellStyle = {
   fontSize: 16,
   fontFamily: 'Arial',
   defaultDotSize: 8,
+  defaultConnectionColor: '#000000',
+  defaultConnectionStyle: 'Dashed',
+  defaultConnectionThickness: 1,
 };
 
 const initialState: CanvasState = {
