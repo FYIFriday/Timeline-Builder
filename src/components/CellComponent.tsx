@@ -105,12 +105,6 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
 
   useEffect(() => {
     if (isEditing && editableRef.current) {
-      // Set the initial HTML content
-      if (editableRef.current.innerHTML !== editHtml) {
-        editableRef.current.innerHTML = editHtml;
-      }
-      editableRef.current.focus();
-
       // Listen for selection changes to update font size display and alignment
       const handleSelectionChange = () => {
         if (document.activeElement === editableRef.current || editableRef.current?.contains(document.activeElement)) {
@@ -129,11 +123,16 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
         document.removeEventListener('selectionchange', handleSelectionChange);
       };
     }
-  }, [isEditing, editHtml]);
+  }, [isEditing]);
 
-  // Select all content only when first entering edit mode
+  // Set initial content and select all when first entering edit mode
   useEffect(() => {
     if (isEditing && editableRef.current) {
+      // Set the initial HTML content
+      editableRef.current.innerHTML = editHtml;
+      editableRef.current.focus();
+
+      // Select all content
       const range = document.createRange();
       const sel = window.getSelection();
       range.selectNodeContents(editableRef.current);
@@ -562,6 +561,20 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
 
     const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
     const cmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
+
+    // Select All - manually select all content in the contentEditable
+    if (cmdOrCtrl && e.key === 'a') {
+      e.preventDefault();
+      e.stopPropagation();
+      if (editableRef.current) {
+        const range = document.createRange();
+        const sel = window.getSelection();
+        range.selectNodeContents(editableRef.current);
+        sel?.removeAllRanges();
+        sel?.addRange(range);
+      }
+      return;
+    }
 
     // Format shortcuts
     if (cmdOrCtrl && e.key === 'b') {

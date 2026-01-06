@@ -37,8 +37,22 @@ function ImageCellComponent({
   const handleImageDoubleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     setIsCropping(true);
-    // Store original dimensions for crop calculations
-    setOriginalDimensions({ x: cell.x, y: cell.y, width: cell.width, height: cell.height });
+
+    // Calculate original dimensions from current dimensions and crop
+    // If already cropped, we need to reverse the crop to get original size
+    const currentCrop = cell.imageCrop || { x: 0, y: 0, width: 1, height: 1 };
+    const originalWidth = cell.width / currentCrop.width;
+    const originalHeight = cell.height / currentCrop.height;
+    const originalX = cell.x - (currentCrop.x * originalWidth);
+    const originalY = cell.y - (currentCrop.y * originalHeight);
+
+    setOriginalDimensions({
+      x: originalX,
+      y: originalY,
+      width: originalWidth,
+      height: originalHeight
+    });
+
     // Start with current crop state (or full if uncropped)
     setCropRect(cell.imageCrop || { x: 0, y: 0, width: 1, height: 1 });
   };
@@ -96,7 +110,7 @@ function ImageCellComponent({
 
     const handleCropMouseUp = () => {
       setCropDragStart(null);
-      setIsCropping(false);
+      // Don't exit crop mode here - stay in crop mode until user presses Escape or clicks outside
 
       // Cell has already been resized and imageCrop updated in real-time
       // Don't reset imageCrop - it contains the info needed to maintain proper scale
@@ -189,6 +203,22 @@ function ImageCellComponent({
     }
   }, [isResizing, handleResizeMouseMove, handleResizeMouseUp]);
 
+  // Add keyboard handler to exit crop mode on Escape or Enter
+  useEffect(() => {
+    if (!isCropping) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' || e.key === 'Enter') {
+        setIsCropping(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isCropping]);
+
   const crop = isCropping ? cropRect : (cell.imageCrop || { x: 0, y: 0, width: 1, height: 1 });
 
   // Calculate background size and position in pixels to maintain original scale
@@ -216,7 +246,7 @@ function ImageCellComponent({
         data-cell-id={cell.id}
         onClick={onCellClick}
         onDoubleClick={handleImageDoubleClick}
-        onMouseDown={onMouseDown}
+        onMouseDown={isCropping ? (e) => e.stopPropagation() : onMouseDown}
         onContextMenu={onContextMenu}
         style={{
           position: 'absolute',
@@ -247,6 +277,24 @@ function ImageCellComponent({
 
       {isCropping && (
         <>
+          {/* Crop mode help text */}
+          <div
+            style={{
+              position: 'absolute',
+              left: originalDimensions.x,
+              top: originalDimensions.y - 30,
+              backgroundColor: 'rgba(0, 0, 0, 0.75)',
+              color: 'white',
+              padding: '4px 8px',
+              borderRadius: 4,
+              fontSize: 12,
+              whiteSpace: 'nowrap',
+              zIndex: 12,
+              pointerEvents: 'none',
+            }}
+          >
+            Drag edges to crop • Press ESC or ENTER to finish
+          </div>
           {/* Crop handles - corners */}
           <div
             onMouseDown={(e) => handleCropMouseDown(e, 'nw')}

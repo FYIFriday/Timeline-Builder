@@ -38,14 +38,15 @@ function FirstLaunchGuide({ onClose, onDontShowAgain }: FirstLaunchGuideProps) {
         style={{
           backgroundColor: '#ffffff',
           borderRadius: 8,
-          padding: 24,
           maxWidth: 600,
           maxHeight: '80vh',
-          overflow: 'auto',
           boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '24px 24px 16px 24px' }}>
           <h2 style={{ margin: 0, fontSize: 20 }}>Welcome to Threadsetter!</h2>
           <button
             onClick={(e) => {
@@ -63,7 +64,8 @@ function FirstLaunchGuide({ onClose, onDontShowAgain }: FirstLaunchGuideProps) {
           </button>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, fontSize: 14, lineHeight: 1.6 }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '0 24px', marginBottom: 16 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, fontSize: 14, lineHeight: 1.6 }}>
           <section>
             <h3 style={{ margin: '0 0 8px 0', fontSize: 16, borderBottom: '2px solid #3b82f6', paddingBottom: 4 }}>Getting Started</h3>
             <ul style={{ margin: '4px 0', paddingLeft: 20 }}>
@@ -166,9 +168,10 @@ function FirstLaunchGuide({ onClose, onDontShowAgain }: FirstLaunchGuideProps) {
           <p style={{ fontSize: 12, color: '#666', marginTop: 8 }}>
             You can access this guide anytime from Settings → User Guide tab
           </p>
+          </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 8, padding: '16px 24px', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #e0e0e0', backgroundColor: '#ffffff' }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, cursor: 'pointer' }}>
             <input
               type="checkbox"
