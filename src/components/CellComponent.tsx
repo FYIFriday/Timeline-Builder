@@ -563,12 +563,6 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
     const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
     const cmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
 
-    // Select All - let browser handle it naturally for contenteditable
-    if (cmdOrCtrl && e.key === 'a') {
-      // Don't prevent default - let the browser select all text in the contenteditable
-      return;
-    }
-
     // Format shortcuts
     if (cmdOrCtrl && e.key === 'b') {
       e.preventDefault();
@@ -1155,7 +1149,7 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
           display: 'flex',
           alignItems: isEditing ? 'flex-start' : 'center',
           justifyContent: isEditing ? 'flex-start' : 'center',
-          zIndex: 10,
+          zIndex: isEditing ? 1000 : 10,
           boxSizing: 'border-box',
           ...fontStyle,
         }}
@@ -1276,8 +1270,9 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
                 <div
                   style={{
                     position: 'absolute',
-                    top: 30,
+                    bottom: '100%',
                     left: 0,
+                    marginBottom: 4,
                     backgroundColor: 'white',
                     border: '1px solid #ccc',
                     borderRadius: 4,
@@ -1336,8 +1331,9 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
                 <div
                   style={{
                     position: 'absolute',
-                    top: 30,
+                    bottom: '100%',
                     left: 0,
+                    marginBottom: 4,
                     backgroundColor: 'white',
                     border: '1px solid #ccc',
                     borderRadius: 4,
@@ -1439,8 +1435,9 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
                 <div
                   style={{
                     position: 'absolute',
-                    top: 30,
+                    bottom: '100%',
                     left: 0,
+                    marginBottom: 4,
                     backgroundColor: 'white',
                     border: '1px solid #ccc',
                     borderRadius: 4,
@@ -1499,8 +1496,9 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
                 <div
                   style={{
                     position: 'absolute',
-                    top: 30,
+                    bottom: '100%',
                     left: 0,
+                    marginBottom: 4,
                     backgroundColor: 'white',
                     border: '1px solid #ccc',
                     borderRadius: 4,

@@ -3,10 +3,13 @@ import { Cell, Connection, CanvasState, HistoryState, ColorPreset, DefaultCellSt
 
 interface StoreState extends CanvasState {
   addCell: (cell: Cell) => void;
+  addCells: (cells: Cell[]) => void;
+  addCellsAndConnections: (cells: Cell[], connections: Connection[]) => void;
   updateCell: (id: string, updates: Partial<Cell>) => void;
   deleteCell: (id: string) => void;
   deleteCells: (ids: string[]) => void;
   addConnection: (connection: Connection) => void;
+  addConnections: (connections: Connection[]) => void;
   deleteConnection: (id: string) => void;
   deleteConnectionsForCells: (cellIds: string[]) => void;
   updateConnection: (id: string, updates: Partial<Connection>) => void;
@@ -102,6 +105,26 @@ export const useStore = create<StoreState>((set, get) => ({
     });
   },
 
+  addCells: (cells) => {
+    set((state) => {
+      const newState = { ...state, cells: [...state.cells, ...cells] };
+      saveHistoryHelper(newState);
+      return newState;
+    });
+  },
+
+  addCellsAndConnections: (cells, connections) => {
+    set((state) => {
+      const newState = {
+        ...state,
+        cells: [...state.cells, ...cells],
+        connections: [...state.connections, ...connections],
+      };
+      saveHistoryHelper(newState);
+      return newState;
+    });
+  },
+
   updateCell: (id, updates) => {
     set((state) => {
       const newState = {
@@ -150,6 +173,17 @@ export const useStore = create<StoreState>((set, get) => ({
       const newState = {
         ...state,
         connections: [...state.connections, connection],
+      };
+      saveHistoryHelper(newState);
+      return newState;
+    });
+  },
+
+  addConnections: (connections) => {
+    set((state) => {
+      const newState = {
+        ...state,
+        connections: [...state.connections, ...connections],
       };
       saveHistoryHelper(newState);
       return newState;

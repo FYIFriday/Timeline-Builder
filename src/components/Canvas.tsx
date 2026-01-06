@@ -52,6 +52,7 @@ function Canvas() {
     redo,
     deleteCells,
     addConnection,
+    addCellsAndConnections,
     saveHistory,
     addPinnedLocation,
   } = useStore();
@@ -457,13 +458,13 @@ function Canvas() {
             };
           });
 
-          newCells.forEach((cell) => addCell(cell));
-
+          // Collect all new connections
+          const newConnections: Connection[] = [];
           clipboardRef.current.connections.forEach((conn) => {
             const newFromId = idMap.get(conn.fromCellId);
             const newToId = idMap.get(conn.toCellId);
             if (newFromId && newToId) {
-              addConnection({
+              newConnections.push({
                 ...conn,
                 id: `conn-${Date.now()}-${Math.random()}`,
                 fromCellId: newFromId,
@@ -472,10 +473,11 @@ function Canvas() {
             }
           });
 
+          // Add all cells and connections in a single batch operation
+          addCellsAndConnections(newCells, newConnections);
+
           // Select the newly pasted cells
           setSelectedCells(newCells.map((cell) => cell.id));
-
-          saveHistory();
         }
       }
       // Paste without formatting
@@ -515,13 +517,13 @@ function Canvas() {
             };
           });
 
-          newCells.forEach((cell) => addCell(cell));
-
+          // Collect all new connections
+          const newConnections: Connection[] = [];
           clipboardRef.current.connections.forEach((conn) => {
             const newFromId = idMap.get(conn.fromCellId);
             const newToId = idMap.get(conn.toCellId);
             if (newFromId && newToId) {
-              addConnection({
+              newConnections.push({
                 ...conn,
                 id: `conn-${Date.now()}-${Math.random()}`,
                 fromCellId: newFromId,
@@ -533,10 +535,11 @@ function Canvas() {
             }
           });
 
+          // Add all cells and connections in a single batch operation
+          addCellsAndConnections(newCells, newConnections);
+
           // Select the newly pasted cells
           setSelectedCells(newCells.map((cell) => cell.id));
-
-          saveHistory();
         }
       }
       // Delete
