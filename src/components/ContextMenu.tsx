@@ -28,6 +28,7 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal, onPinLocation }: Cont
     deleteConnectionsForCells,
     updateConnection,
     setCanvasBackgroundColor,
+    canvasBackgroundColor,
     deleteCells,
     saveHistory,
     addColorPreset,
@@ -233,6 +234,27 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal, onPinLocation }: Cont
   const handleColorPicker = (type: 'background' | 'text' | 'border' | 'connection' | 'canvas') => {
     const input = document.createElement('input');
     input.type = 'color';
+
+    // Set initial color based on type
+    if (type === 'background' && selectedCells.length > 0) {
+      input.value = selectedCells[0].backgroundColor;
+    } else if (type === 'text' && selectedCells.length > 0) {
+      input.value = selectedCells[0].textColor;
+    } else if (type === 'border' && selectedCells.length > 0) {
+      input.value = selectedCells[0].borderColor;
+    } else if (type === 'connection') {
+      const firstConnection = connections.find(
+        (conn) =>
+          selectedCellIds.includes(conn.fromCellId) &&
+          selectedCellIds.includes(conn.toCellId)
+      );
+      if (firstConnection) {
+        input.value = firstConnection.color;
+      }
+    } else if (type === 'canvas') {
+      input.value = canvasBackgroundColor;
+    }
+
     input.click();
     input.onchange = (e) => {
       const color = (e.target as HTMLInputElement).value;

@@ -69,9 +69,6 @@ function SearchPanel({ onClose }: SearchPanelProps) {
     const cell = cells.find((c) => c.id === cellId);
     if (!cell) return;
 
-    const cellText = caseSensitive ? cell.text : cell.text.toLowerCase();
-    const search = caseSensitive ? searchText : searchText.toLowerCase();
-
     let newText = cell.text;
     if (caseSensitive) {
       newText = newText.replace(searchText, replaceText);
@@ -81,7 +78,20 @@ function SearchPanel({ onClose }: SearchPanelProps) {
       newText = newText.replace(regex, replaceText);
     }
 
-    updateCell(cellId, { text: newText });
+    // Update both text and htmlContent (if it exists)
+    if (cell.htmlContent) {
+      let newHtmlContent = cell.htmlContent;
+      if (caseSensitive) {
+        newHtmlContent = newHtmlContent.replace(searchText, replaceText);
+      } else {
+        const regex = new RegExp(searchText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+        newHtmlContent = newHtmlContent.replace(regex, replaceText);
+      }
+      updateCell(cellId, { text: newText, htmlContent: newHtmlContent });
+    } else {
+      updateCell(cellId, { text: newText });
+    }
+
     saveHistory();
 
     // Move to next match after replacing
@@ -104,11 +114,25 @@ function SearchPanel({ onClose }: SearchPanelProps) {
         newText = newText.replace(regex, replaceText);
       }
 
-      updateCell(cellId, { text: newText });
+      // Update both text and htmlContent (if it exists)
+      if (cell.htmlContent) {
+        let newHtmlContent = cell.htmlContent;
+        if (caseSensitive) {
+          newHtmlContent = newHtmlContent.replaceAll(searchText, replaceText);
+        } else {
+          const regex = new RegExp(searchText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+          newHtmlContent = newHtmlContent.replace(regex, replaceText);
+        }
+        updateCell(cellId, { text: newText, htmlContent: newHtmlContent });
+      } else {
+        updateCell(cellId, { text: newText });
+      }
     });
 
     saveHistory();
-    setSearchText(''); // Clear search to refresh matches
+
+    // Don't clear search - let the user see the results
+    // The search will automatically update to show 0 matches since text was replaced
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

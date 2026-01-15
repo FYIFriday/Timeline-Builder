@@ -161,7 +161,7 @@ function FirstLaunchGuide({ onClose, onDontShowAgain }: FirstLaunchGuideProps) {
               <li><strong>Save:</strong> Cmd/Ctrl + S (saves to current file)</li>
               <li><strong>Save As:</strong> Cmd/Ctrl + Shift + S (choose new location)</li>
               <li><strong>Export:</strong> File menu → Export to PNG, PDF, or JSON</li>
-              <li><strong>Auto-save:</strong> Your work is automatically backed up every 3 minutes</li>
+              <li><strong>Auto-save:</strong> Your work is automatically backed up every minute and when you switch away from the app</li>
             </ul>
           </section>
 

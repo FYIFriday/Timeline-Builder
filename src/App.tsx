@@ -864,8 +864,8 @@ function App() {
       window.electron.onMenuSearch(handleSearch);
     }
 
-    // Auto-save every 3 minutes
-    const autoSaveInterval = setInterval(async () => {
+    // Function to save backup
+    const saveBackup = async () => {
       const state = useStore.getState();
       const data = JSON.stringify({
         cells: state.cells,
@@ -885,10 +885,21 @@ function App() {
       if (window.electron) {
         await window.electron.saveBackup(data);
       }
-    }, 3 * 60 * 1000);
+    };
+
+    // Auto-save every 1 minute (reduced from 3 minutes for better protection)
+    const autoSaveInterval = setInterval(saveBackup, 60 * 1000);
+
+    // Save when window loses focus (user switches away)
+    const handleWindowBlur = () => {
+      saveBackup();
+    };
+
+    window.addEventListener('blur', handleWindowBlur);
 
     return () => {
       clearInterval(autoSaveInterval);
+      window.removeEventListener('blur', handleWindowBlur);
     };
   }, []); // Empty dependency array - only run once on mount
 
