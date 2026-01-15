@@ -38,6 +38,10 @@ contextBridge.exposeInMainWorld('electron', {
     ipcRenderer.removeAllListeners('menu-search');
     ipcRenderer.on('menu-search', callback);
   },
+  onMenuExportRegion: (callback: () => void) => {
+    ipcRenderer.removeAllListeners('menu-export-region');
+    ipcRenderer.on('menu-export-region', callback);
+  },
   onFileOpened: (callback: (data: string) => void) => {
     ipcRenderer.removeAllListeners('file-opened');
     ipcRenderer.on('file-opened', (_, data) => callback(data));

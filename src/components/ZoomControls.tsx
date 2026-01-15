@@ -38,7 +38,7 @@ function ZoomControls({ onTogglePinnedLocations }: ZoomControlsProps) {
         type="range"
         min="0.1"
         max="4"
-        step="0.1"
+        step="0.05"
         value={zoom}
         onChange={handleZoomChange}
         style={{ width: 100 }}

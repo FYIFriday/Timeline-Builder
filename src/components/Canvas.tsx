@@ -26,6 +26,12 @@ function Canvas() {
   const [selectionBox, setSelectionBox] = useState<{ startX: number; startY: number; endX: number; endY: number } | null>(null);
   const [isSelecting, setIsSelecting] = useState(false);
   const [isShiftSelecting, setIsShiftSelecting] = useState(false);
+  const [isExportRegionMode, setIsExportRegionMode] = useState(false);
+  const [showExportRegionInstructions, setShowExportRegionInstructions] = useState(false);
+  const [exportRegionBox, setExportRegionBox] = useState<{ startX: number; startY: number; endX: number; endY: number } | null>(null);
+  const [isDrawingExportRegion, setIsDrawingExportRegion] = useState(false);
+  const [isResizingExportRegion, setIsResizingExportRegion] = useState(false);
+  const [exportRegionResizeHandle, setExportRegionResizeHandle] = useState<string | null>(null);
   const lastMouseDownPos = useRef<{ x: number; y: number; time: number } | null>(null);
 
   const {
@@ -140,30 +146,117 @@ function Canvas() {
       // Track mouse down position and time for double-click detection
       lastMouseDownPos.current = { x: e.clientX, y: e.clientY, time: Date.now() };
 
-      setIsSelecting(true);
-      setIsShiftSelecting(e.shiftKey);
-      setSelectionBox({ startX: x, startY: y, endX: x, endY: y });
+      if (isExportRegionMode) {
+        // Start drawing export region box
+        setExportRegionBox({ startX: x, startY: y, endX: x, endY: y });
+        setIsDrawingExportRegion(true);
+      } else {
+        // Normal selection mode
+        setIsSelecting(true);
+        setIsShiftSelecting(e.shiftKey);
+        setSelectionBox({ startX: x, startY: y, endX: x, endY: y });
 
-      // Only clear selection if Shift is not held
-      if (!e.shiftKey) {
-        clearSelection();
+        // Only clear selection if Shift is not held
+        if (!e.shiftKey) {
+          clearSelection();
+        }
       }
     }
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (isSelecting && canvasRef.current) {
+    if (canvasRef.current) {
       const rect = canvasRef.current.getBoundingClientRect();
       const x = (e.clientX - rect.left - offsetX) / zoom;
       const y = (e.clientY - rect.top - offsetY) / zoom;
 
-      setSelectionBox((prev) => prev ? { ...prev, endX: x, endY: y } : null);
+      if (isDrawingExportRegion && exportRegionBox) {
+        // Update export region box while drawing
+        setExportRegionBox((prev) => prev ? { ...prev, endX: x, endY: y } : null);
+      } else if (isResizingExportRegion && exportRegionBox && exportRegionResizeHandle) {
+        // Handle resizing the export region box
+        const minX = Math.min(exportRegionBox.startX, exportRegionBox.endX);
+        const maxX = Math.max(exportRegionBox.startX, exportRegionBox.endX);
+        const minY = Math.min(exportRegionBox.startY, exportRegionBox.endY);
+        const maxY = Math.max(exportRegionBox.startY, exportRegionBox.endY);
+
+        let newStartX = exportRegionBox.startX;
+        let newStartY = exportRegionBox.startY;
+        let newEndX = exportRegionBox.endX;
+        let newEndY = exportRegionBox.endY;
+
+        // Adjust based on which handle is being dragged
+        if (exportRegionResizeHandle.includes('n')) {
+          // Top edge
+          if (exportRegionBox.startY < exportRegionBox.endY) {
+            newStartY = y;
+          } else {
+            newEndY = y;
+          }
+        }
+        if (exportRegionResizeHandle.includes('s')) {
+          // Bottom edge
+          if (exportRegionBox.startY < exportRegionBox.endY) {
+            newEndY = y;
+          } else {
+            newStartY = y;
+          }
+        }
+        if (exportRegionResizeHandle.includes('w')) {
+          // Left edge
+          if (exportRegionBox.startX < exportRegionBox.endX) {
+            newStartX = x;
+          } else {
+            newEndX = x;
+          }
+        }
+        if (exportRegionResizeHandle.includes('e')) {
+          // Right edge
+          if (exportRegionBox.startX < exportRegionBox.endX) {
+            newEndX = x;
+          } else {
+            newStartX = x;
+          }
+        }
+
+        setExportRegionBox({ startX: newStartX, startY: newStartY, endX: newEndX, endY: newEndY });
+      } else if (isSelecting) {
+        // Normal selection
+        setSelectionBox((prev) => prev ? { ...prev, endX: x, endY: y } : null);
+      }
+    }
+  };
+
+  const confirmExportRegion = () => {
+    if (exportRegionBox) {
+      const minX = Math.min(exportRegionBox.startX, exportRegionBox.endX);
+      const maxX = Math.max(exportRegionBox.startX, exportRegionBox.endX);
+      const minY = Math.min(exportRegionBox.startY, exportRegionBox.endY);
+      const maxY = Math.max(exportRegionBox.startY, exportRegionBox.endY);
+
+      // Dispatch custom event with bounds for export
+      window.dispatchEvent(new CustomEvent('export-region-selected', {
+        detail: { minX, maxX, minY, maxY }
+      }));
+
+      // Exit export region mode
+      setIsExportRegionMode(false);
+      setExportRegionBox(null);
+      setIsDrawingExportRegion(false);
+      setIsResizingExportRegion(false);
     }
   };
 
   const handleMouseUp = () => {
-    if (isSelecting && selectionBox) {
-      // Select all cells within the selection box
+    if (isDrawingExportRegion) {
+      // Just stop drawing, don't trigger export yet
+      setIsDrawingExportRegion(false);
+    } else if (isResizingExportRegion) {
+      // Just stop resizing
+      setIsResizingExportRegion(false);
+      setExportRegionResizeHandle(null);
+    } else if (isSelecting && selectionBox) {
+      // Normal selection mode - select all cells within the selection box
       const minX = Math.min(selectionBox.startX, selectionBox.endX);
       const maxX = Math.max(selectionBox.startX, selectionBox.endX);
       const minY = Math.min(selectionBox.startY, selectionBox.endY);
@@ -378,6 +471,15 @@ function Canvas() {
   }, []);
 
   useEffect(() => {
+    const handleExportRegion = () => {
+      setShowExportRegionInstructions(true);
+    };
+
+    window.addEventListener('export-region', handleExportRegion);
+    return () => window.removeEventListener('export-region', handleExportRegion);
+  }, []);
+
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
       const cmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
@@ -389,6 +491,24 @@ function Canvas() {
         if (cmdOrCtrl && e.key === 'a') {
           return; // Let the browser handle it
         }
+        return;
+      }
+
+      // Escape - Cancel export region mode
+      if (e.key === 'Escape' && isExportRegionMode) {
+        e.preventDefault();
+        setIsExportRegionMode(false);
+        setExportRegionBox(null);
+        setIsDrawingExportRegion(false);
+        setIsResizingExportRegion(false);
+        setExportRegionResizeHandle(null);
+        return;
+      }
+
+      // Enter - Confirm export region selection
+      if (e.key === 'Enter' && isExportRegionMode && exportRegionBox && !isDrawingExportRegion) {
+        e.preventDefault();
+        confirmExportRegion();
         return;
       }
 
@@ -726,6 +846,186 @@ function Canvas() {
             }}
           />
         )}
+        {exportRegionBox && (() => {
+          const minX = Math.min(exportRegionBox.startX, exportRegionBox.endX);
+          const minY = Math.min(exportRegionBox.startY, exportRegionBox.endY);
+          const width = Math.abs(exportRegionBox.endX - exportRegionBox.startX);
+          const height = Math.abs(exportRegionBox.endY - exportRegionBox.startY);
+          const cornerHandleSize = 14;
+          const borderThickness = 3;
+          const showHandles = !isDrawingExportRegion;
+
+          const cornerHandleStyle = {
+            position: 'absolute' as const,
+            width: cornerHandleSize,
+            height: cornerHandleSize,
+            backgroundColor: '#10b981',
+            border: '2px solid white',
+            borderRadius: 2,
+            cursor: 'pointer',
+            zIndex: 1003,
+            boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+          };
+
+          const handleMouseDownOnHandle = (handle: string) => (e: React.MouseEvent) => {
+            e.stopPropagation();
+            setIsResizingExportRegion(true);
+            setExportRegionResizeHandle(handle);
+          };
+
+          const handleMouseDownOnBorder = (edge: string) => (e: React.MouseEvent) => {
+            e.stopPropagation();
+            setIsResizingExportRegion(true);
+            setExportRegionResizeHandle(edge);
+          };
+
+          return (
+            <>
+              {/* Main selection box with transparent fill */}
+              <div
+                style={{
+                  position: 'absolute',
+                  left: minX,
+                  top: minY,
+                  width,
+                  height,
+                  backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                  pointerEvents: 'none',
+                  zIndex: 1000,
+                }}
+              />
+
+              {/* Draggable borders */}
+              {showHandles && (
+                <>
+                  {/* Top border */}
+                  <div
+                    onMouseDown={handleMouseDownOnBorder('n')}
+                    style={{
+                      position: 'absolute',
+                      left: minX,
+                      top: minY - borderThickness,
+                      width,
+                      height: borderThickness * 2,
+                      backgroundColor: '#10b981',
+                      cursor: 'n-resize',
+                      zIndex: 1001,
+                    }}
+                  />
+                  {/* Bottom border */}
+                  <div
+                    onMouseDown={handleMouseDownOnBorder('s')}
+                    style={{
+                      position: 'absolute',
+                      left: minX,
+                      top: minY + height - borderThickness,
+                      width,
+                      height: borderThickness * 2,
+                      backgroundColor: '#10b981',
+                      cursor: 's-resize',
+                      zIndex: 1001,
+                    }}
+                  />
+                  {/* Left border */}
+                  <div
+                    onMouseDown={handleMouseDownOnBorder('w')}
+                    style={{
+                      position: 'absolute',
+                      left: minX - borderThickness,
+                      top: minY,
+                      width: borderThickness * 2,
+                      height,
+                      backgroundColor: '#10b981',
+                      cursor: 'w-resize',
+                      zIndex: 1001,
+                    }}
+                  />
+                  {/* Right border */}
+                  <div
+                    onMouseDown={handleMouseDownOnBorder('e')}
+                    style={{
+                      position: 'absolute',
+                      left: minX + width - borderThickness,
+                      top: minY,
+                      width: borderThickness * 2,
+                      height,
+                      backgroundColor: '#10b981',
+                      cursor: 'e-resize',
+                      zIndex: 1001,
+                    }}
+                  />
+
+                  {/* Corner handles - larger squares */}
+                  <div style={{ ...cornerHandleStyle, left: minX - cornerHandleSize/2, top: minY - cornerHandleSize/2, cursor: 'nw-resize' }} onMouseDown={handleMouseDownOnHandle('nw')} />
+                  <div style={{ ...cornerHandleStyle, left: minX + width - cornerHandleSize/2, top: minY - cornerHandleSize/2, cursor: 'ne-resize' }} onMouseDown={handleMouseDownOnHandle('ne')} />
+                  <div style={{ ...cornerHandleStyle, left: minX - cornerHandleSize/2, top: minY + height - cornerHandleSize/2, cursor: 'sw-resize' }} onMouseDown={handleMouseDownOnHandle('sw')} />
+                  <div style={{ ...cornerHandleStyle, left: minX + width - cornerHandleSize/2, top: minY + height - cornerHandleSize/2, cursor: 'se-resize' }} onMouseDown={handleMouseDownOnHandle('se')} />
+
+                  {/* Confirm button */}
+                  <button
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={confirmExportRegion}
+                    style={{
+                      position: 'absolute',
+                      left: minX + width/2 - 50,
+                      top: minY + height + 15,
+                      padding: '8px 20px',
+                      backgroundColor: '#10b981',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: 6,
+                      fontSize: 14,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                      zIndex: 1002,
+                    }}
+                  >
+                    Confirm
+                  </button>
+                </>
+              )}
+
+              {/* Non-interactive border when drawing */}
+              {!showHandles && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: minX,
+                    top: minY,
+                    width,
+                    height,
+                    border: '3px solid #10b981',
+                    pointerEvents: 'none',
+                    zIndex: 1001,
+                  }}
+                />
+              )}
+            </>
+          );
+        })()}
+        {isExportRegionMode && (
+          <div
+            style={{
+              position: 'fixed',
+              top: 20,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              backgroundColor: 'rgba(16, 185, 129, 0.95)',
+              color: 'white',
+              padding: '12px 24px',
+              borderRadius: 8,
+              boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+              zIndex: 10001,
+              fontSize: 14,
+              fontWeight: 600,
+            }}
+          >
+            {isDrawingExportRegion
+              ? 'Draw a box around the region to export • Press ESC to cancel'
+              : 'Adjust the selection • Press ENTER to confirm • Press ESC to cancel'}
+          </div>
+        )}
       </div>
 
       <ZoomControls onTogglePinnedLocations={() => setShowPinnedLocations(!showPinnedLocations)} />
@@ -763,6 +1063,85 @@ function Canvas() {
 
       {showSearchPanel && (
         <SearchPanel onClose={() => setShowSearchPanel(false)} />
+      )}
+
+      {showExportRegionInstructions && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10002,
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: 'white',
+              borderRadius: 12,
+              padding: 32,
+              maxWidth: 480,
+              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.3)',
+            }}
+          >
+            <h2 style={{ margin: '0 0 16px 0', fontSize: 24, fontWeight: 600, color: '#333' }}>
+              Export Region
+            </h2>
+            <p style={{ margin: '0 0 24px 0', fontSize: 16, lineHeight: 1.6, color: '#666' }}>
+              Draw a rectangular box around the area you want to export.
+              Click and drag on the canvas to select your region.
+            </p>
+            <ul style={{ margin: '0 0 24px 0', paddingLeft: 24, fontSize: 14, lineHeight: 1.8, color: '#666' }}>
+              <li>Click and drag to draw the selection box</li>
+              <li>A green banner will guide you</li>
+              <li>Press ESC to cancel anytime</li>
+              <li>Choose PNG or PDF format after selecting</li>
+            </ul>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => {
+                  setShowExportRegionInstructions(false);
+                }}
+                style={{
+                  padding: '10px 20px',
+                  border: '1px solid #ccc',
+                  borderRadius: 6,
+                  backgroundColor: 'white',
+                  color: '#333',
+                  fontSize: 14,
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowExportRegionInstructions(false);
+                  setIsExportRegionMode(true);
+                  setExportRegionBox(null);
+                }}
+                style={{
+                  padding: '10px 20px',
+                  border: 'none',
+                  borderRadius: 6,
+                  backgroundColor: '#10b981',
+                  color: 'white',
+                  fontSize: 14,
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                }}
+              >
+                Start Selection
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <button

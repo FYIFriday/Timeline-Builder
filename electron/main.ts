@@ -140,6 +140,14 @@ function createMenu() {
           },
         },
         { type: 'separator' },
+        {
+          label: 'Export Region...',
+          accelerator: 'CommandOrControl+Shift+E',
+          click: () => {
+            mainWindow?.webContents.send('menu-export-region');
+          },
+        },
+        { type: 'separator' },
         { role: 'quit' },
       ],
     },
@@ -258,7 +266,24 @@ ipcMain.handle('export-pdf', async (_, dataUrl: string) => {
     defaultPath: 'timeline.pdf',
   });
   if (!result.canceled && result.filePath) {
-    // Convert base64 PNG to PDF by rendering in a hidden window and printing
+    // Write HTML to temporary file to avoid URL length limitations
+    const tempPath = path.join(app.getPath('temp'), 'timeline-export.html');
+    const htmlContent = `<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { margin: 0; padding: 0; }
+    img { width: 100%; height: auto; display: block; }
+  </style>
+</head>
+<body>
+  <img src="${dataUrl}" />
+</body>
+</html>`;
+
+    fs.writeFileSync(tempPath, htmlContent, 'utf-8');
+
+    // Convert PNG to PDF by rendering in a hidden window and printing
     const pdfWindow = new BrowserWindow({
       show: false,
       webPreferences: {
@@ -266,7 +291,7 @@ ipcMain.handle('export-pdf', async (_, dataUrl: string) => {
       },
     });
 
-    await pdfWindow.loadURL(`data:text/html,<img src="${dataUrl}" style="width:100%"/>`);
+    await pdfWindow.loadFile(tempPath);
 
     const pdfData = await pdfWindow.webContents.printToPDF({
       printBackground: true,
@@ -275,6 +300,10 @@ ipcMain.handle('export-pdf', async (_, dataUrl: string) => {
 
     fs.writeFileSync(result.filePath, pdfData);
     pdfWindow.close();
+
+    // Clean up temp file
+    fs.unlinkSync(tempPath);
+
     return result.filePath;
   }
   return null;
