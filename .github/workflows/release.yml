@@ -28,6 +28,6 @@ jobs:
         with:
           name: release-${{ matrix.os }}
           path: |
-            dist/*.dmg
-            dist/*.exe
-            dist/*.zip
+            release/*.dmg
+            release/*.exe
+            release/*.zip
