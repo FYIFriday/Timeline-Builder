@@ -1,6 +1,6 @@
 {
   "name": "timeline-free-plotter",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Threadsetter - An infinite canvas flowchart and timeline planning tool",
   "main": "dist/main.js",
   "scripts": {
