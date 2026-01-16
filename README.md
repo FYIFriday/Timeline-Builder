@@ -5,7 +5,7 @@ An infinite canvas flowchart and timeline planning tool built with Electron, Rea
 ## Features
 
 - **Infinite Canvas**: Pan by dragging and zoom with scroll wheel (10% to 400%)
-- **Flexible Cells**: Create, edit, move, and resize cells with ease
+- **Flexible Cells**: Create, edit, move, and resize cells however you like
 - **Timeline Cells**: Create timeline cells with custom number ranges and orientations
 - **Connections**: Draw connections between cells with multiple styles and weights
 - **Pinned Locations**: Save and quickly navigate to specific canvas positions and zoom levels
@@ -43,7 +43,7 @@ npm run package:mac
 npm run package:win
 ```
 
-## Usage
+## How To Use: 
 
 - **Create Cell**: Double-click on empty canvas, or right-click > Add new cell
 - **Edit Cell**: Double-click on a cell
