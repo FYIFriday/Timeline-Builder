@@ -376,22 +376,20 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
 
     // Only auto-resize if the cell hasn't been manually resized
     if (!cell.manuallyResized) {
-      // Create a temporary div to measure content
+      // Create a temporary div to measure content height
       const tempDiv = document.createElement('div');
       tempDiv.style.position = 'absolute';
       tempDiv.style.visibility = 'hidden';
-      tempDiv.style.width = 'auto';
+      tempDiv.style.width = `${cell.width}px`; // Use current cell width to calculate wrapped height
       tempDiv.style.height = 'auto';
       tempDiv.style.whiteSpace = 'pre-wrap';
       tempDiv.style.wordBreak = 'break-word';
       tempDiv.style.fontFamily = cell.fontFamily;
       tempDiv.style.fontSize = `${cell.fontSize}px`;
       tempDiv.style.padding = '12px';
-      tempDiv.style.maxWidth = '600px';
       tempDiv.innerHTML = htmlContent;
       document.body.appendChild(tempDiv);
 
-      const newWidth = Math.max(200, Math.min(600, tempDiv.scrollWidth + 32));
       const newHeight = Math.max(30, tempDiv.scrollHeight + 24);
 
       document.body.removeChild(tempDiv);
@@ -399,7 +397,6 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
       updateCell(cell.id, {
         text: plainText,
         htmlContent: htmlContent,
-        width: newWidth,
         height: newHeight
       });
     } else {

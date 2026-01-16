@@ -5,7 +5,7 @@ interface ZoomControlsProps {
 }
 
 function ZoomControls({ onTogglePinnedLocations }: ZoomControlsProps) {
-  const { zoom, setZoom, setOffset } = useStore();
+  const { zoom, setZoom, setOffset, offsetX, offsetY } = useStore();
 
   const handleZoomChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setZoom(parseFloat(e.target.value));
@@ -16,12 +16,31 @@ function ZoomControls({ onTogglePinnedLocations }: ZoomControlsProps) {
     setOffset(0, 0);
   };
 
+  const zoomTowardCenter = (newZoom: number) => {
+    // Calculate the center of the viewport
+    const centerX = window.innerWidth / 2;
+    const centerY = window.innerHeight / 2;
+
+    // Calculate the world coordinates at the viewport center
+    const worldX = (centerX - offsetX) / zoom;
+    const worldY = (centerY - offsetY) / zoom;
+
+    // Calculate new offset to keep the world point at the viewport center
+    const newOffsetX = centerX - worldX * newZoom;
+    const newOffsetY = centerY - worldY * newZoom;
+
+    setZoom(newZoom);
+    setOffset(newOffsetX, newOffsetY);
+  };
+
   const handleZoomIn = () => {
-    setZoom(Math.min(4, zoom + 0.01));
+    const newZoom = Math.min(4, zoom + 0.01);
+    zoomTowardCenter(newZoom);
   };
 
   const handleZoomOut = () => {
-    setZoom(Math.max(0.1, zoom - 0.01));
+    const newZoom = Math.max(0.1, zoom - 0.01);
+    zoomTowardCenter(newZoom);
   };
 
   const zoomPercent = Math.round(zoom * 100);
