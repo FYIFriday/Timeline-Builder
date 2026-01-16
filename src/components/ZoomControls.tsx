@@ -16,6 +16,14 @@ function ZoomControls({ onTogglePinnedLocations }: ZoomControlsProps) {
     setOffset(0, 0);
   };
 
+  const handleZoomIn = () => {
+    setZoom(Math.min(4, zoom + 0.01));
+  };
+
+  const handleZoomOut = () => {
+    setZoom(Math.max(0.1, zoom - 0.01));
+  };
+
   const zoomPercent = Math.round(zoom * 100);
 
   return (
@@ -43,9 +51,39 @@ function ZoomControls({ onTogglePinnedLocations }: ZoomControlsProps) {
         onChange={handleZoomChange}
         style={{ width: 100 }}
       />
+      <button
+        onClick={handleZoomOut}
+        style={{
+          padding: '5px 10px',
+          border: '1px solid #ccc',
+          borderRadius: 4,
+          backgroundColor: 'white',
+          cursor: 'pointer',
+          fontSize: 14,
+          fontWeight: 'bold',
+        }}
+        title="Zoom Out"
+      >
+        −
+      </button>
       <span style={{ minWidth: 50, textAlign: 'center', fontSize: 14 }}>
         {zoomPercent}%
       </span>
+      <button
+        onClick={handleZoomIn}
+        style={{
+          padding: '5px 10px',
+          border: '1px solid #ccc',
+          borderRadius: 4,
+          backgroundColor: 'white',
+          cursor: 'pointer',
+          fontSize: 14,
+          fontWeight: 'bold',
+        }}
+        title="Zoom In"
+      >
+        +
+      </button>
       <button
         onClick={handleReset}
         style={{

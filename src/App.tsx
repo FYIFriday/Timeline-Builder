@@ -1055,9 +1055,13 @@ function App() {
       }
     };
 
-    const handleNew = () => {
+    const handleNew = async () => {
       if (confirm('Create a new timeline? Unsaved changes will be lost.')) {
         useStore.getState().resetState();
+        // Reset window title to default
+        if (window.electron) {
+          await window.electron.setWindowTitle('Untitled - Threadsetter');
+        }
       }
     };
 
