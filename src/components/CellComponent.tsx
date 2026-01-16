@@ -586,6 +586,14 @@ function CellComponent({ cell, isSelected }: CellComponentProps) {
     } else if (cmdOrCtrl && e.shiftKey && e.key === 'S') {
       e.preventDefault();
       applyFormat('strikeThrough');
+    } else if (cmdOrCtrl && (e.key === '+' || e.key === '=')) {
+      // Increase font size (+ or = key, since + requires shift)
+      e.preventDefault();
+      changeFontSize(2);
+    } else if (cmdOrCtrl && (e.key === '-' || e.key === '_')) {
+      // Decrease font size
+      e.preventDefault();
+      changeFontSize(-2);
     }
   };
 
