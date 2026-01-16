@@ -54,6 +54,9 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal, onPinLocation }: Cont
   // Check if ONLY dots are selected (one or more)
   const onlyDotsSelected = selectedCells.length > 0 && selectedCells.every(c => c.isDot);
 
+  // Check if ONLY timeline cells are selected (one or more)
+  const onlyTimelinesSelected = selectedCells.length > 0 && selectedCells.every(c => c.isTimeline);
+
   // Check if any cells are selected
   const hasCellsSelected = selectedCellIds.length > 0;
 
@@ -511,6 +514,87 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal, onPinLocation }: Cont
     onClose();
   };
 
+  const handleTimelineFontBigger = () => {
+    selectedCellIds.forEach((id) => {
+      const cell = cells.find((c) => c.id === id);
+      if (cell?.isTimeline) {
+        updateCell(id, { fontSize: Math.min(cell.fontSize + 2, 72) });
+      }
+    });
+    saveHistory();
+    onClose();
+  };
+
+  const handleTimelineFontSmaller = () => {
+    selectedCellIds.forEach((id) => {
+      const cell = cells.find((c) => c.id === id);
+      if (cell?.isTimeline) {
+        updateCell(id, { fontSize: Math.max(cell.fontSize - 2, 8) });
+      }
+    });
+    saveHistory();
+    onClose();
+  };
+
+  const handleTimelineFontColor = () => {
+    if (selectedCells.length === 0) return;
+    const input = document.createElement('input');
+    input.type = 'color';
+    const firstTimeline = selectedCells.find(c => c.isTimeline);
+    if (firstTimeline) {
+      input.value = firstTimeline.textColor;
+    }
+    input.click();
+    input.onchange = (e) => {
+      const color = (e.target as HTMLInputElement).value;
+      selectedCellIds.forEach((id) => {
+        const cell = cells.find(c => c.id === id);
+        if (cell?.isTimeline) {
+          updateCell(id, { textColor: color, styleName: undefined });
+        }
+      });
+      saveHistory();
+    };
+    onClose();
+  };
+
+  const handleTimelineBackgroundColor = () => {
+    if (selectedCells.length === 0) return;
+    const input = document.createElement('input');
+    input.type = 'color';
+    const firstTimeline = selectedCells.find(c => c.isTimeline);
+    if (firstTimeline) {
+      input.value = firstTimeline.backgroundColor;
+    }
+    input.click();
+    input.onchange = (e) => {
+      const color = (e.target as HTMLInputElement).value;
+      selectedCellIds.forEach((id) => {
+        const cell = cells.find(c => c.id === id);
+        if (cell?.isTimeline) {
+          updateCell(id, { backgroundColor: color, styleName: undefined });
+        }
+      });
+      saveHistory();
+    };
+    onClose();
+  };
+
+  const handleTimelineStyle = (preset: typeof colorPresets[0]) => {
+    selectedCellIds.forEach((id) => {
+      const cell = cells.find((c) => c.id === id);
+      if (cell?.isTimeline) {
+        updateCell(id, {
+          textColor: preset.textColor,
+          backgroundColor: preset.bgColor,
+          styleName: preset.name,
+        });
+      }
+    });
+    saveHistory();
+    onClose();
+  };
+
   const handleCreateImage = () => {
     const input = document.createElement('input');
     input.type = 'file';
@@ -563,6 +647,73 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal, onPinLocation }: Cont
     input.click();
     onClose();
   };
+
+  // Timeline-specific menu
+  if (onlyTimelinesSelected) {
+    return (
+      <div
+        ref={menuRef}
+        style={{
+          position: 'fixed',
+          left: position.x,
+          top: position.y,
+          backgroundColor: 'white',
+          border: '1px solid #ccc',
+          borderRadius: 4,
+          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+          zIndex: 10000,
+          minWidth: 200,
+        }}
+      >
+        <MenuSubmenu label="Change Style">
+          {colorPresets.map((preset) => (
+            <MenuItem
+              key={preset.name}
+              onClick={() => handleTimelineStyle(preset)}
+            >
+              {preset.name}
+            </MenuItem>
+          ))}
+        </MenuSubmenu>
+        <MenuSubmenu label="Font">
+          <MenuItem onClick={handleTimelineFontBigger} shortcut={`${modKey}+'+`}>
+            Make Font Bigger
+          </MenuItem>
+          <MenuItem onClick={handleTimelineFontSmaller} shortcut={`${modKey}+'-'`}>
+            Make Font Smaller
+          </MenuItem>
+        </MenuSubmenu>
+        <MenuSubmenu label="Color">
+          <MenuItem onClick={handleTimelineFontColor}>Font Color</MenuItem>
+          <MenuItem onClick={handleTimelineBackgroundColor}>Background Color</MenuItem>
+        </MenuSubmenu>
+        <MenuSubmenu label="Align" disabled={selectedCellIds.length < 2}>
+          <MenuItem onClick={() => handleAlign('left')} disabled={selectedCellIds.length < 2}>Left Edge</MenuItem>
+          <MenuItem onClick={() => handleAlign('hcenter')} disabled={selectedCellIds.length < 2}>Horizontal Center</MenuItem>
+          <MenuItem onClick={() => handleAlign('right')} disabled={selectedCellIds.length < 2}>Right Edge</MenuItem>
+          <MenuDivider />
+          <MenuItem onClick={() => handleAlign('top')} disabled={selectedCellIds.length < 2}>Top Edge</MenuItem>
+          <MenuItem onClick={() => handleAlign('vcenter')} disabled={selectedCellIds.length < 2}>Vertical Center</MenuItem>
+          <MenuItem onClick={() => handleAlign('bottom')} disabled={selectedCellIds.length < 2}>Bottom Edge</MenuItem>
+        </MenuSubmenu>
+        <MenuSubmenu label="Distribute" disabled={selectedCellIds.length < 3}>
+          <MenuItem onClick={() => handleDistribute('horizontal')} disabled={selectedCellIds.length < 3}>Horizontally</MenuItem>
+          <MenuItem onClick={() => handleDistribute('vertical')} disabled={selectedCellIds.length < 3}>Vertically</MenuItem>
+        </MenuSubmenu>
+        <MenuDivider />
+        <MenuItem onClick={handleGroupObjects} disabled={selectedCellIds.length < 2}>
+          Group Objects
+        </MenuItem>
+        <MenuItem onClick={handleUngroupObjects} disabled={!someSelectedAreGrouped}>
+          Ungroup Objects
+        </MenuItem>
+        <MenuDivider />
+        <MenuItem onClick={handleDelete} disabled={selectedCellIds.length === 0}>
+          Delete
+        </MenuItem>
+      </div>
+    );
+  }
 
   // Simplified menu for dots only
   if (onlyDotsSelected) {
