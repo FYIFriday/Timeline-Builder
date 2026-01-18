@@ -373,16 +373,75 @@ function App() {
     ctx.fillStyle = canvasBackgroundColor;
     ctx.fillRect(0, 0, width, height);
 
+    // Helper function to calculate timeline pin position
+    const getTimelinePinPosition = (cell: Cell, pinIndex: number | undefined, baseX: number, baseY: number) => {
+      if (!cell.isTimeline || !cell.timelineConfig || pinIndex === undefined) {
+        return { x: baseX + cell.width / 2, y: baseY + cell.height / 2 };
+      }
+
+      const config = cell.timelineConfig;
+      const numbers: number[] = [];
+      const step = config.granularity === 'Custom' && config.customInterval ? config.customInterval : 1;
+      const display = config.displayInterval || 1;
+      let current = config.reverse ? Math.max(config.startNumber, config.endNumber) : config.startNumber;
+      const end = config.reverse ? Math.min(config.startNumber, config.endNumber) : config.endNumber;
+      const startForModulo = config.reverse ? Math.max(config.startNumber, config.endNumber) : config.startNumber;
+
+      if (config.reverse) {
+        while (current >= end) {
+          if ((startForModulo - current) % display === 0) numbers.push(current);
+          current -= step;
+        }
+      } else {
+        while (current <= end) {
+          if ((current - startForModulo) % display === 0) numbers.push(current);
+          current += step;
+        }
+      }
+
+      const isHorizontal = config.orientation === 'Horizontal';
+      let itemWidth: number;
+      let itemHeight: number;
+
+      if (cell.manuallyResized) {
+        itemWidth = isHorizontal ? cell.width / numbers.length : cell.width;
+        itemHeight = isHorizontal ? cell.height : cell.height / numbers.length;
+      } else {
+        itemWidth = isHorizontal ? 60 : 40;
+        itemHeight = isHorizontal ? 40 : 60;
+      }
+
+      if (isHorizontal) {
+        return {
+          x: baseX + pinIndex * itemWidth + itemWidth / 2,
+          y: baseY + itemHeight / 2
+        };
+      } else {
+        return {
+          x: baseX + itemWidth / 2,
+          y: baseY + pinIndex * itemHeight + itemHeight / 2
+        };
+      }
+    };
+
     // Draw connections and cells (same rendering logic as before)
     exportConnections.forEach((conn) => {
       const fromCell = exportCells.find((c) => c.id === conn.fromCellId);
       const toCell = exportCells.find((c) => c.id === conn.toCellId);
       if (!fromCell || !toCell) return;
 
-      const x1 = fromCell.x - minX + padding + fromCell.width / 2;
-      const y1 = fromCell.y - minY + padding + fromCell.height / 2;
-      let x2 = toCell.x - minX + padding + toCell.width / 2;
-      let y2 = toCell.y - minY + padding + toCell.height / 2;
+      const fromBaseX = fromCell.x - minX + padding;
+      const fromBaseY = fromCell.y - minY + padding;
+      const toBaseX = toCell.x - minX + padding;
+      const toBaseY = toCell.y - minY + padding;
+
+      const fromPos = getTimelinePinPosition(fromCell, conn.fromPinIndex, fromBaseX, fromBaseY);
+      const toPos = getTimelinePinPosition(toCell, conn.toPinIndex, toBaseX, toBaseY);
+
+      const x1 = fromPos.x;
+      const y1 = fromPos.y;
+      let x2 = toPos.x;
+      let y2 = toPos.y;
 
       if (conn.style === 'Arrow') {
         const dx = x2 - x1;
@@ -484,8 +543,17 @@ function App() {
         }
 
         const isHorizontal = config.orientation === 'Horizontal';
-        const itemWidth = isHorizontal ? 60 : 40;
-        const itemHeight = isHorizontal ? 40 : 60;
+
+        // Use actual cell dimensions if manually resized, otherwise use defaults
+        let itemWidth: number;
+        let itemHeight: number;
+        if (cell.manuallyResized) {
+          itemWidth = isHorizontal ? cell.width / numbers.length : cell.width;
+          itemHeight = isHorizontal ? cell.height : cell.height / numbers.length;
+        } else {
+          itemWidth = isHorizontal ? 60 : 40;
+          itemHeight = isHorizontal ? 40 : 60;
+        }
 
         ctx.fillStyle = cell.backgroundColor;
         ctx.fillRect(x, y, cell.width, cell.height);
@@ -697,16 +765,75 @@ function App() {
     ctx.fillStyle = canvasBackgroundColor;
     ctx.fillRect(0, 0, width, height);
 
+    // Helper function to calculate timeline pin position
+    const getTimelinePinPosition = (cell: Cell, pinIndex: number | undefined, baseX: number, baseY: number) => {
+      if (!cell.isTimeline || !cell.timelineConfig || pinIndex === undefined) {
+        return { x: baseX + cell.width / 2, y: baseY + cell.height / 2 };
+      }
+
+      const config = cell.timelineConfig;
+      const numbers: number[] = [];
+      const step = config.granularity === 'Custom' && config.customInterval ? config.customInterval : 1;
+      const display = config.displayInterval || 1;
+      let current = config.reverse ? Math.max(config.startNumber, config.endNumber) : config.startNumber;
+      const end = config.reverse ? Math.min(config.startNumber, config.endNumber) : config.endNumber;
+      const startForModulo = config.reverse ? Math.max(config.startNumber, config.endNumber) : config.startNumber;
+
+      if (config.reverse) {
+        while (current >= end) {
+          if ((startForModulo - current) % display === 0) numbers.push(current);
+          current -= step;
+        }
+      } else {
+        while (current <= end) {
+          if ((current - startForModulo) % display === 0) numbers.push(current);
+          current += step;
+        }
+      }
+
+      const isHorizontal = config.orientation === 'Horizontal';
+      let itemWidth: number;
+      let itemHeight: number;
+
+      if (cell.manuallyResized) {
+        itemWidth = isHorizontal ? cell.width / numbers.length : cell.width;
+        itemHeight = isHorizontal ? cell.height : cell.height / numbers.length;
+      } else {
+        itemWidth = isHorizontal ? 60 : 40;
+        itemHeight = isHorizontal ? 40 : 60;
+      }
+
+      if (isHorizontal) {
+        return {
+          x: baseX + pinIndex * itemWidth + itemWidth / 2,
+          y: baseY + itemHeight / 2
+        };
+      } else {
+        return {
+          x: baseX + itemWidth / 2,
+          y: baseY + pinIndex * itemHeight + itemHeight / 2
+        };
+      }
+    };
+
     // Same rendering code as PNG (connections and cells)
     exportConnections.forEach((conn) => {
       const fromCell = exportCells.find((c) => c.id === conn.fromCellId);
       const toCell = exportCells.find((c) => c.id === conn.toCellId);
       if (!fromCell || !toCell) return;
 
-      const x1 = fromCell.x - minX + padding + fromCell.width / 2;
-      const y1 = fromCell.y - minY + padding + fromCell.height / 2;
-      let x2 = toCell.x - minX + padding + toCell.width / 2;
-      let y2 = toCell.y - minY + padding + toCell.height / 2;
+      const fromBaseX = fromCell.x - minX + padding;
+      const fromBaseY = fromCell.y - minY + padding;
+      const toBaseX = toCell.x - minX + padding;
+      const toBaseY = toCell.y - minY + padding;
+
+      const fromPos = getTimelinePinPosition(fromCell, conn.fromPinIndex, fromBaseX, fromBaseY);
+      const toPos = getTimelinePinPosition(toCell, conn.toPinIndex, toBaseX, toBaseY);
+
+      const x1 = fromPos.x;
+      const y1 = fromPos.y;
+      let x2 = toPos.x;
+      let y2 = toPos.y;
 
       if (conn.style === 'Arrow') {
         const dx = x2 - x1;
@@ -808,8 +935,17 @@ function App() {
         }
 
         const isHorizontal = config.orientation === 'Horizontal';
-        const itemWidth = isHorizontal ? 60 : 40;
-        const itemHeight = isHorizontal ? 40 : 60;
+
+        // Use actual cell dimensions if manually resized, otherwise use defaults
+        let itemWidth: number;
+        let itemHeight: number;
+        if (cell.manuallyResized) {
+          itemWidth = isHorizontal ? cell.width / numbers.length : cell.width;
+          itemHeight = isHorizontal ? cell.height : cell.height / numbers.length;
+        } else {
+          itemWidth = isHorizontal ? 60 : 40;
+          itemHeight = isHorizontal ? 40 : 60;
+        }
 
         ctx.fillStyle = cell.backgroundColor;
         ctx.fillRect(x, y, cell.width, cell.height);
