@@ -1994,9 +1994,15 @@ function TimelineCell({ cell, isSelected, onCellClick, onMouseDown, zoom, offset
   const [isHovering, setIsHovering] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [resizeDirection, setResizeDirection] = useState<ResizeDirection>(null);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editingValue, setEditingValue] = useState('');
+  const editInputRef = useRef<HTMLInputElement>(null);
+  const isClickingToolbarRef = useRef(false);
+  const savedSelectionRef = useRef<Range | null>(null);
   const resizeStartRef = useRef({ x: 0, y: 0, width: 0, height: 0, cellX: 0, cellY: 0 });
   const resizeDirectionRef = useRef<ResizeDirection>(null);
   const allCellsResizeStartRef = useRef<Map<string, { x: number; y: number; width: number; height: number }>>(new Map());
+  const lastClickRef = useRef<{ index: number; time: number } | null>(null);
 
   const { selectedCellIds, cells } = useStore();
   const config = cell.timelineConfig!;
@@ -2057,8 +2063,8 @@ function TimelineCell({ cell, isSelected, onCellClick, onMouseDown, zoom, offset
     resizeStartRef.current = {
       x: e.clientX,
       y: e.clientY,
-      width: cell.width,
-      height: cell.height,
+      width: totalWidth,  // Use actual rendered width
+      height: totalHeight, // Use actual rendered height
       cellX: cell.x,
       cellY: cell.y,
     };
@@ -2068,11 +2074,34 @@ function TimelineCell({ cell, isSelected, onCellClick, onMouseDown, zoom, offset
     selectedCellIds.forEach((id) => {
       const targetCell = cells.find((c) => c.id === id);
       if (targetCell) {
+        // For timeline cells, we need to calculate their actual rendered dimensions
+        let actualWidth = targetCell.width;
+        let actualHeight = targetCell.height;
+
+        if (targetCell.isTimeline && targetCell.timelineConfig) {
+          const config = targetCell.timelineConfig;
+          const isHorizontal = config.orientation === 'Horizontal';
+          const numbers: number[] = [];
+          for (let i = config.startNumber; i <= config.endNumber; i++) {
+            numbers.push(i);
+          }
+
+          if (targetCell.manuallyResized) {
+            actualWidth = targetCell.width;
+            actualHeight = targetCell.height;
+          } else {
+            const itemWidth = isHorizontal ? 60 : 40;
+            const itemHeight = isHorizontal ? 40 : 60;
+            actualWidth = isHorizontal ? numbers.length * itemWidth : itemWidth;
+            actualHeight = isHorizontal ? itemHeight : numbers.length * itemHeight;
+          }
+        }
+
         initialDimensions.set(id, {
           x: targetCell.x,
           y: targetCell.y,
-          width: targetCell.width,
-          height: targetCell.height,
+          width: actualWidth,
+          height: actualHeight,
         });
       }
     });
@@ -2174,12 +2203,177 @@ function TimelineCell({ cell, isSelected, onCellClick, onMouseDown, zoom, offset
     }
   }, [isResizing, handleMouseMove, handleMouseUp]);
 
+  useEffect(() => {
+    if (editingIndex !== null && editInputRef.current) {
+      editInputRef.current.focus();
+      // Select all content in contentEditable div
+      const range = document.createRange();
+      range.selectNodeContents(editInputRef.current);
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    }
+  }, [editingIndex]);
+
+  // Close editing mode when cell is deselected
+  useEffect(() => {
+    if (!isSelected && editingIndex !== null) {
+      setEditingIndex(null);
+      setEditingValue('');
+    }
+  }, [isSelected, editingIndex]);
+
+  // Save selection when it changes in contentEditable
+  useEffect(() => {
+    if (editingIndex !== null && editInputRef.current) {
+      const handleSelectionChange = () => {
+        // Don't update if we're currently interacting with toolbar
+        if (isClickingToolbarRef.current) {
+          return;
+        }
+
+        const selection = window.getSelection();
+        if (selection && selection.rangeCount > 0 && editInputRef.current?.contains(selection.anchorNode)) {
+          const range = selection.getRangeAt(0);
+          // Save the selection for toolbar interactions
+          savedSelectionRef.current = range.cloneRange();
+        }
+      };
+
+      document.addEventListener('selectionchange', handleSelectionChange);
+      return () => {
+        document.removeEventListener('selectionchange', handleSelectionChange);
+      };
+    }
+  }, [editingIndex]);
+
+  const handleSegmentClick = (e: React.MouseEvent, index: number, currentLabel: string | { text: string; html: string } | undefined) => {
+    const now = Date.now();
+    const lastClick = lastClickRef.current;
+
+    const currentValue = typeof currentLabel === 'object' ? currentLabel.html : (currentLabel || String(numbers[index]));
+
+    // Check if this is a double-click (within 300ms on the same segment)
+    if (lastClick && lastClick.index === index && now - lastClick.time < 300) {
+      e.stopPropagation();
+      e.preventDefault();
+      setEditingIndex(index);
+      setEditingValue(currentValue);
+      lastClickRef.current = null; // Reset
+    } else {
+      // Single click - just record it
+      lastClickRef.current = { index, time: now };
+    }
+  };
+
+  const handleEditBlur = () => {
+    // If clicking on toolbar, don't close the editor
+    if (isClickingToolbarRef.current) {
+      return;
+    }
+
+    // Small delay to allow toolbar clicks to register
+    setTimeout(() => {
+      if (editingIndex !== null && editInputRef.current && !isClickingToolbarRef.current) {
+        const htmlContent = editInputRef.current.innerHTML;
+        const textContent = editInputRef.current.textContent || '';
+
+        const newCustomLabels = { ...(config.customLabels || {}) };
+
+        // Check if there's any HTML formatting
+        const hasFormatting = htmlContent !== textContent && (
+          htmlContent.includes('<b>') ||
+          htmlContent.includes('<i>') ||
+          htmlContent.includes('<u>') ||
+          htmlContent.includes('style=') ||
+          htmlContent.includes('<span')
+        );
+
+        // Remove if empty or (same as original number AND no formatting)
+        if (textContent.trim() === '' || (textContent === String(numbers[editingIndex]) && !hasFormatting)) {
+          delete newCustomLabels[editingIndex];
+        } else {
+          if (hasFormatting) {
+            newCustomLabels[editingIndex] = {
+              text: textContent,
+              html: htmlContent
+            };
+          } else {
+            // Plain text, just store as string
+            newCustomLabels[editingIndex] = textContent;
+          }
+        }
+
+        updateCell(cell.id, {
+          timelineConfig: {
+            ...config,
+            customLabels: Object.keys(newCustomLabels).length > 0 ? newCustomLabels : undefined,
+          },
+        });
+        saveHistory();
+        setEditingIndex(null);
+      }
+    }, 150);
+  };
+
+  const handleEditKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleEditBlur();
+    } else if (e.key === 'Escape') {
+      setEditingIndex(null);
+    }
+  };
+
+  // Formatting commands for timeline segment editing
+  const applyFormat = (command: string, value?: string) => {
+    // Restore saved selection if it exists
+    if (savedSelectionRef.current && editInputRef.current) {
+      // First, refocus the contentEditable
+      editInputRef.current.focus();
+
+      // Then restore the selection
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(savedSelectionRef.current);
+
+      // Apply the formatting using document.execCommand
+      document.execCommand(command, false, value);
+
+      // Keep the contentEditable focused
+      editInputRef.current.focus();
+    } else {
+      // No saved selection, apply to current selection
+      document.execCommand(command, false, value);
+      editInputRef.current?.focus();
+    }
+  };
+
   return (
     <>
       <div
         data-cell-id={cell.id}
         onClick={onCellClick}
-        onMouseDown={isResizing ? undefined : onMouseDown}
+        onMouseDown={(e) => {
+          const target = e.target as HTMLElement;
+
+          // If currently editing a segment, only block drag on the contentEditable and toolbar
+          if (editingIndex !== null) {
+            if (target.isContentEditable ||
+                target.closest('[contenteditable="true"]') ||
+                target.closest('button') ||
+                target.closest('input[type="color"]')) {
+              e.stopPropagation();
+              return;
+            }
+            // Allow dragging by clicking on other parts of the cell
+          }
+
+          // Allow drag - pass to parent handler
+          if (!isResizing && onMouseDown) {
+            onMouseDown(e);
+          }
+        }}
         onMouseEnter={() => setIsHovering(true)}
         onMouseLeave={() => setIsHovering(false)}
         style={{
@@ -2194,7 +2388,7 @@ function TimelineCell({ cell, isSelected, onCellClick, onMouseDown, zoom, offset
           fontFamily: cell.fontFamily,
           fontWeight: cell.bold ? 'bold' : 'normal',
           fontStyle: cell.italic ? 'italic' : 'normal',
-          textDecoration: `${cell.underline ? 'underline' : ''} ${cell.strikethrough ? 'line-through' : ''}`.trim(),
+          textDecoration: `${cell.underline ? 'underline' : ''} ${cell.strikethrough ? 'line-through' : ''}`.trim() || 'none',
           border: isSelected ? '2px solid #3b82f6' : 'none',
           display: 'flex',
           flexDirection: isHorizontal ? 'row' : 'column',
@@ -2203,156 +2397,435 @@ function TimelineCell({ cell, isSelected, onCellClick, onMouseDown, zoom, offset
           zIndex: 10,
         }}
       >
-        {numbers.map((num, index) => (
-          <div
-            key={index}
-            data-pin-index={index}
-            style={{
-              width: isHorizontal ? itemWidth : '100%',
-              height: isHorizontal ? '100%' : itemHeight,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: isHorizontal ? '2px 0' : '0 2px',
-              boxSizing: 'border-box',
-              borderRight: isHorizontal && index < numbers.length - 1 ? '1px solid #ccc' : 'none',
-              borderBottom: !isHorizontal && index < numbers.length - 1 ? '1px solid #ccc' : 'none',
-              position: 'relative',
-            }}
-          >
-            {num}
-            {isHovering && (
-              <div
-                data-connection-pin="true"
-                data-cell-id={cell.id}
-                data-pin-index={index}
-                style={{
-                  position: 'absolute',
-                  width: 8,
-                  height: 8,
-                  backgroundColor: '#3b82f6',
-                  borderRadius: '50%',
-                  left: '50%',
-                  top: '50%',
-                  transform: 'translate(-50%, -50%)',
-                  pointerEvents: 'none',
-                }}
-              />
-            )}
-          </div>
-        ))}
-      </div>
+        {numbers.map((num, index) => {
+          const customLabel = config.customLabels?.[index];
+          const displayValue = typeof customLabel === 'object' ? customLabel.text : (customLabel ?? String(num));
+          const displayHTML = typeof customLabel === 'object' ? customLabel.html : (customLabel ?? String(num));
 
-      {isSelected && (
-        <>
-          {/* Corner handles */}
-          <div
-            onMouseDown={(e) => handleResizeMouseDown(e, 'nw')}
-            style={{
-              position: 'absolute',
-              left: cell.x - 3,
-              top: cell.y - 3,
-              width: 5,
-              height: 5,
-              backgroundColor: '#3b82f6',
-              cursor: 'nwse-resize',
-              zIndex: 11,
-            }}
-          />
-          <div
-            onMouseDown={(e) => handleResizeMouseDown(e, 'ne')}
-            style={{
-              position: 'absolute',
-              left: cell.x + totalWidth - 2,
-              top: cell.y - 3,
-              width: 5,
-              height: 5,
-              backgroundColor: '#3b82f6',
-              cursor: 'nesw-resize',
-              zIndex: 11,
-            }}
-          />
-          <div
-            onMouseDown={(e) => handleResizeMouseDown(e, 'se')}
-            style={{
-              position: 'absolute',
-              left: cell.x + totalWidth - 2,
-              top: cell.y + totalHeight - 2,
-              width: 5,
-              height: 5,
-              backgroundColor: '#3b82f6',
-              cursor: 'nwse-resize',
-              zIndex: 11,
-            }}
-          />
-          <div
-            onMouseDown={(e) => handleResizeMouseDown(e, 'sw')}
-            style={{
-              position: 'absolute',
-              left: cell.x - 3,
-              top: cell.y + totalHeight - 2,
-              width: 5,
-              height: 5,
-              backgroundColor: '#3b82f6',
-              cursor: 'nesw-resize',
-              zIndex: 11,
-            }}
-          />
-          {/* Edge handles */}
-          <div
-            onMouseDown={(e) => handleResizeMouseDown(e, 'n')}
-            style={{
-              position: 'absolute',
-              left: cell.x + totalWidth / 2 - 8,
-              top: cell.y - 2,
-              width: 16,
-              height: 4,
-              backgroundColor: '#3b82f6',
-              cursor: 'ns-resize',
-              zIndex: 11,
-            }}
-          />
-          <div
-            onMouseDown={(e) => handleResizeMouseDown(e, 's')}
-            style={{
-              position: 'absolute',
-              left: cell.x + totalWidth / 2 - 8,
-              top: cell.y + totalHeight - 2,
-              width: 16,
-              height: 4,
-              backgroundColor: '#3b82f6',
-              cursor: 'ns-resize',
-              zIndex: 11,
-            }}
-          />
-          <div
-            onMouseDown={(e) => handleResizeMouseDown(e, 'e')}
-            style={{
-              position: 'absolute',
-              left: cell.x + totalWidth - 2,
-              top: cell.y + totalHeight / 2 - 8,
-              width: 4,
-              height: 16,
-              backgroundColor: '#3b82f6',
-              cursor: 'ew-resize',
-              zIndex: 11,
-            }}
-          />
-          <div
-            onMouseDown={(e) => handleResizeMouseDown(e, 'w')}
-            style={{
-              position: 'absolute',
-              left: cell.x - 2,
-              top: cell.y + totalHeight / 2 - 8,
-              width: 4,
-              height: 16,
-              backgroundColor: '#3b82f6',
-              cursor: 'ew-resize',
-              zIndex: 11,
-            }}
-          />
-        </>
-      )}
+          return (
+            <div
+              key={index}
+              data-pin-index={index}
+              data-timeline-segment="true"
+              onClick={(e) => handleSegmentClick(e, index, customLabel)}
+              style={{
+                width: isHorizontal ? itemWidth : '100%',
+                height: isHorizontal ? '100%' : itemHeight,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: isHorizontal ? '2px 0' : '0 2px',
+                boxSizing: 'border-box',
+                borderRight: isHorizontal && index < numbers.length - 1 ? `1px solid ${cell.borderColor}` : 'none',
+                borderBottom: !isHorizontal && index < numbers.length - 1 ? `1px solid ${cell.borderColor}` : 'none',
+                position: 'relative',
+                cursor: 'text',
+              }}
+            >
+              {editingIndex === index ? (
+                <>
+                  <div
+                    ref={editInputRef}
+                    contentEditable
+                    suppressContentEditableWarning
+                    onBlur={handleEditBlur}
+                    onKeyDown={handleEditKeyDown}
+                    onClick={(e) => e.stopPropagation()}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    dangerouslySetInnerHTML={{ __html: editingValue }}
+                    style={{
+                      width: '90%',
+                      minHeight: '60%',
+                      maxHeight: '80%',
+                      textAlign: 'center',
+                      fontSize: 'inherit',
+                      fontFamily: 'inherit',
+                      border: '1px solid #3b82f6',
+                      borderRadius: 2,
+                      backgroundColor: 'white',
+                      color: cell.textColor,
+                      outline: 'none',
+                      overflow: 'auto',
+                      padding: '2px 4px',
+                    }}
+                  />
+                  {/* Formatting Toolbar */}
+                  <div
+                    onMouseDown={(e) => {
+                      // Only stop propagation for actual toolbar elements, not the container
+                      const target = e.target as HTMLElement;
+                      if (target !== e.currentTarget) {
+                        e.stopPropagation();
+                      }
+                    }}
+                    style={{
+                      position: 'absolute',
+                      top: '-32px',
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      backgroundColor: '#1f2937',
+                      border: '1px solid #374151',
+                      borderRadius: 4,
+                      padding: '4px',
+                      display: 'flex',
+                      gap: '2px',
+                      zIndex: 100,
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                      pointerEvents: 'auto',
+                    }}
+                  >
+                    <button
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        // Save selection before button click
+                        const selection = window.getSelection();
+                        if (selection && selection.rangeCount > 0) {
+                          savedSelectionRef.current = selection.getRangeAt(0).cloneRange();
+                        }
+                      }}
+                      onClick={() => applyFormat('bold')}
+                      style={{
+                        padding: '4px 8px',
+                        backgroundColor: '#374151',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: 2,
+                        cursor: 'pointer',
+                        fontWeight: 'bold',
+                        fontSize: '12px',
+                      }}
+                      title="Bold (Ctrl/Cmd+B)"
+                    >
+                      B
+                    </button>
+                    <button
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        const selection = window.getSelection();
+                        if (selection && selection.rangeCount > 0) {
+                          savedSelectionRef.current = selection.getRangeAt(0).cloneRange();
+                        }
+                      }}
+                      onClick={() => applyFormat('italic')}
+                      style={{
+                        padding: '4px 8px',
+                        backgroundColor: '#374151',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: 2,
+                        cursor: 'pointer',
+                        fontStyle: 'italic',
+                        fontSize: '12px',
+                      }}
+                      title="Italic (Ctrl/Cmd+I)"
+                    >
+                      I
+                    </button>
+                    <button
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        const selection = window.getSelection();
+                        if (selection && selection.rangeCount > 0) {
+                          savedSelectionRef.current = selection.getRangeAt(0).cloneRange();
+                        }
+                      }}
+                      onClick={() => applyFormat('underline')}
+                      style={{
+                        padding: '4px 8px',
+                        backgroundColor: '#374151',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: 2,
+                        cursor: 'pointer',
+                        textDecoration: 'underline',
+                        fontSize: '12px',
+                      }}
+                      title="Underline (Ctrl/Cmd+U)"
+                    >
+                      U
+                    </button>
+                    <button
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        const selection = window.getSelection();
+                        if (selection && selection.rangeCount > 0) {
+                          savedSelectionRef.current = selection.getRangeAt(0).cloneRange();
+                        }
+                      }}
+                      onClick={() => applyFormat('strikethrough')}
+                      style={{
+                        padding: '4px 8px',
+                        backgroundColor: '#374151',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: 2,
+                        cursor: 'pointer',
+                        textDecoration: 'line-through',
+                        fontSize: '12px',
+                      }}
+                      title="Strikethrough"
+                    >
+                      S
+                    </button>
+                    <div style={{ width: '1px', backgroundColor: '#4b5563', margin: '0 4px' }} />
+                    <input
+                      type="color"
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        isClickingToolbarRef.current = true;
+                        // Save selection before color picker gains focus
+                        const selection = window.getSelection();
+                        if (selection && selection.rangeCount > 0) {
+                          savedSelectionRef.current = selection.getRangeAt(0).cloneRange();
+                        }
+                      }}
+                      onChange={(e) => {
+                        applyFormat('foreColor', e.target.value);
+                        setTimeout(() => {
+                          editInputRef.current?.focus();
+                          isClickingToolbarRef.current = false;
+                        }, 10);
+                      }}
+                      onBlur={() => {
+                        setTimeout(() => {
+                          isClickingToolbarRef.current = false;
+                        }, 10);
+                      }}
+                      style={{
+                        width: '24px',
+                        height: '24px',
+                        border: 'none',
+                        cursor: 'pointer',
+                        borderRadius: 2,
+                      }}
+                      title="Text Color"
+                    />
+                    <input
+                      type="color"
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        isClickingToolbarRef.current = true;
+                        // Save selection before color picker gains focus
+                        const selection = window.getSelection();
+                        if (selection && selection.rangeCount > 0) {
+                          savedSelectionRef.current = selection.getRangeAt(0).cloneRange();
+                        }
+                      }}
+                      onChange={(e) => {
+                        applyFormat('backColor', e.target.value);
+                        setTimeout(() => {
+                          editInputRef.current?.focus();
+                          isClickingToolbarRef.current = false;
+                        }, 10);
+                      }}
+                      onBlur={() => {
+                        setTimeout(() => {
+                          isClickingToolbarRef.current = false;
+                        }, 10);
+                      }}
+                      style={{
+                        width: '24px',
+                        height: '24px',
+                        border: 'none',
+                        cursor: 'pointer',
+                        borderRadius: 2,
+                      }}
+                      title="Background Color"
+                    />
+                  </div>
+                </>
+                ) : (
+                  <span dangerouslySetInnerHTML={{ __html: displayHTML }} />
+                )
+              }
+              {isHovering && editingIndex !== index && (
+                <div
+                  data-connection-pin="true"
+                  data-cell-id={cell.id}
+                  data-pin-index={index}
+                  style={{
+                    position: 'absolute',
+                    width: 8,
+                    height: 8,
+                    backgroundColor: '#3b82f6',
+                    borderRadius: '50%',
+                    left: '50%',
+                    top: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    pointerEvents: 'none',
+                  }}
+                />
+              )}
+            </div>
+          );
+        })}
+        {/* Continuous edge resize handles - drag anywhere on borders */}
+        {isSelected && (
+          <>
+            {/* Edge handles - continuous along entire borders */}
+            {/* Top edge - full width */}
+            <div
+              onMouseDown={(e) => handleResizeMouseDown(e, 'n')}
+              style={{
+                position: 'absolute',
+                left: 0,
+                top: -4,
+                width: '100%',
+                height: 8,
+                cursor: 'ns-resize',
+                zIndex: 11,
+              }}
+            />
+            {/* Bottom edge - full width */}
+            <div
+              onMouseDown={(e) => handleResizeMouseDown(e, 's')}
+              style={{
+                position: 'absolute',
+                left: 0,
+                bottom: -4,
+                width: '100%',
+                height: 8,
+                cursor: 'ns-resize',
+                zIndex: 11,
+              }}
+            />
+            {/* Left edge - full height */}
+            <div
+              onMouseDown={(e) => handleResizeMouseDown(e, 'w')}
+              style={{
+                position: 'absolute',
+                left: -4,
+                top: 0,
+                width: 8,
+                height: '100%',
+                cursor: 'ew-resize',
+                zIndex: 11,
+              }}
+            />
+            {/* Right edge - full height */}
+            <div
+              onMouseDown={(e) => handleResizeMouseDown(e, 'e')}
+              style={{
+                position: 'absolute',
+                right: -4,
+                top: 0,
+                width: 8,
+                height: '100%',
+                cursor: 'ew-resize',
+                zIndex: 11,
+              }}
+            />
+
+            {/* Corner zones - higher z-index for diagonal resizing */}
+            {/* Top-left corner */}
+            <div
+              onMouseDown={(e) => handleResizeMouseDown(e, 'nw')}
+              style={{
+                position: 'absolute',
+                left: -4,
+                top: -4,
+                width: 16,
+                height: 16,
+                cursor: 'nwse-resize',
+                zIndex: 12,
+              }}
+            />
+            {/* Top-right corner */}
+            <div
+              onMouseDown={(e) => handleResizeMouseDown(e, 'ne')}
+              style={{
+                position: 'absolute',
+                right: -4,
+                top: -4,
+                width: 16,
+                height: 16,
+                cursor: 'nesw-resize',
+                zIndex: 12,
+              }}
+            />
+            {/* Bottom-right corner */}
+            <div
+              onMouseDown={(e) => handleResizeMouseDown(e, 'se')}
+              style={{
+                position: 'absolute',
+                right: -4,
+                bottom: -4,
+                width: 16,
+                height: 16,
+                cursor: 'nwse-resize',
+                zIndex: 12,
+              }}
+            />
+            {/* Bottom-left corner */}
+            <div
+              onMouseDown={(e) => handleResizeMouseDown(e, 'sw')}
+              style={{
+                position: 'absolute',
+                left: -4,
+                bottom: -4,
+                width: 16,
+                height: 16,
+                cursor: 'nesw-resize',
+                zIndex: 12,
+              }}
+            />
+
+            {/* Visual corner indicators */}
+            <div
+              style={{
+                position: 'absolute',
+                left: -3,
+                top: -3,
+                width: 6,
+                height: 6,
+                backgroundColor: '#3b82f6',
+                borderRadius: '50%',
+                pointerEvents: 'none',
+                zIndex: 13,
+              }}
+            />
+            <div
+              style={{
+                position: 'absolute',
+                right: -3,
+                top: -3,
+                width: 6,
+                height: 6,
+                backgroundColor: '#3b82f6',
+                borderRadius: '50%',
+                pointerEvents: 'none',
+                zIndex: 13,
+              }}
+            />
+            <div
+              style={{
+                position: 'absolute',
+                right: -3,
+                bottom: -3,
+                width: 6,
+                height: 6,
+                backgroundColor: '#3b82f6',
+                borderRadius: '50%',
+                pointerEvents: 'none',
+                zIndex: 13,
+              }}
+            />
+            <div
+              style={{
+                position: 'absolute',
+                left: -3,
+                bottom: -3,
+                width: 6,
+                height: 6,
+                backgroundColor: '#3b82f6',
+                borderRadius: '50%',
+                pointerEvents: 'none',
+                zIndex: 13,
+              }}
+            />
+          </>
+        )}
+      </div>
     </>
   );
 }

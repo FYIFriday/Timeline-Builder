@@ -584,11 +584,30 @@ function ContextMenu({ x, y, onClose, onOpenTimelineModal, onPinLocation }: Cont
     selectedCellIds.forEach((id) => {
       const cell = cells.find((c) => c.id === id);
       if (cell?.isTimeline) {
-        updateCell(id, {
+        // Apply style properties but preserve custom labels with formatting
+        const updates: any = {
           textColor: preset.textColor,
           backgroundColor: preset.bgColor,
           styleName: preset.name,
-        });
+        };
+
+        // Apply border properties if they exist in the preset
+        if (preset.borderColor !== undefined) {
+          updates.borderColor = preset.borderColor;
+        }
+        if (preset.borderThickness !== undefined) {
+          updates.borderThickness = preset.borderThickness;
+        }
+        if (preset.borderRadius !== undefined) {
+          updates.borderRadius = preset.borderRadius;
+        }
+
+        // Explicitly preserve timelineConfig with any custom labels
+        if (cell.timelineConfig) {
+          updates.timelineConfig = cell.timelineConfig;
+        }
+
+        updateCell(id, updates);
       }
     });
     saveHistory();

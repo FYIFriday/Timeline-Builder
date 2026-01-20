@@ -38,6 +38,7 @@ export interface TimelineConfig {
   orientation: 'Horizontal' | 'Vertical';
   reverse: boolean;
   displayInterval?: number;
+  customLabels?: { [index: number]: string | { text: string; html: string } }; // Custom labels with optional HTML formatting
 }
 
 export interface Connection {

@@ -567,10 +567,12 @@ function App() {
           const itemY = isHorizontal ? y : y + index * itemHeight;
           const drawWidth = isHorizontal ? itemWidth : cell.width;
           const drawHeight = isHorizontal ? cell.height : itemHeight;
-          ctx.fillText(String(num), itemX + drawWidth / 2, itemY + drawHeight / 2);
+          const customLabel = config.customLabels?.[index];
+          const displayValue = typeof customLabel === 'object' ? customLabel.text : (customLabel ?? String(num));
+          ctx.fillText(displayValue, itemX + drawWidth / 2, itemY + drawHeight / 2);
 
           if (index < numbers.length - 1) {
-            ctx.strokeStyle = '#ccc';
+            ctx.strokeStyle = cell.borderColor;
             ctx.lineWidth = 1;
             ctx.beginPath();
             if (isHorizontal) {
@@ -959,10 +961,12 @@ function App() {
           const itemY = isHorizontal ? y : y + index * itemHeight;
           const drawWidth = isHorizontal ? itemWidth : cell.width;
           const drawHeight = isHorizontal ? cell.height : itemHeight;
-          ctx.fillText(String(num), itemX + drawWidth / 2, itemY + drawHeight / 2);
+          const customLabel = config.customLabels?.[index];
+          const displayValue = typeof customLabel === 'object' ? customLabel.text : (customLabel ?? String(num));
+          ctx.fillText(displayValue, itemX + drawWidth / 2, itemY + drawHeight / 2);
 
           if (index < numbers.length - 1) {
-            ctx.strokeStyle = '#ccc';
+            ctx.strokeStyle = cell.borderColor;
             ctx.lineWidth = 1;
             ctx.beginPath();
             if (isHorizontal) {

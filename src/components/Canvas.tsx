@@ -483,9 +483,49 @@ function Canvas() {
     const handleKeyDown = (e: KeyboardEvent) => {
       const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
       const cmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
+      const target = e.target as HTMLElement;
+
+      // Formatting shortcuts for timeline cells - handle these even when not in edit mode
+      const isEditing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+
+      // Bold toggle
+      if (cmdOrCtrl && e.key === 'b' && selectedCellIds.length > 0 && !isEditing) {
+        e.preventDefault();
+        selectedCellIds.forEach((id) => {
+          const cell = cells.find((c) => c.id === id);
+          if (cell) {
+            updateCell(id, { bold: !cell.bold });
+          }
+        });
+        saveHistory();
+        return;
+      }
+      // Italic toggle
+      if (cmdOrCtrl && e.key === 'i' && selectedCellIds.length > 0 && !isEditing) {
+        e.preventDefault();
+        selectedCellIds.forEach((id) => {
+          const cell = cells.find((c) => c.id === id);
+          if (cell) {
+            updateCell(id, { italic: !cell.italic });
+          }
+        });
+        saveHistory();
+        return;
+      }
+      // Underline toggle
+      if (cmdOrCtrl && e.key === 'u' && selectedCellIds.length > 0 && !isEditing) {
+        e.preventDefault();
+        selectedCellIds.forEach((id) => {
+          const cell = cells.find((c) => c.id === id);
+          if (cell) {
+            updateCell(id, { underline: !cell.underline });
+          }
+        });
+        saveHistory();
+        return;
+      }
 
       // Don't interfere with text editing, but allow Ctrl/Cmd+A for select all
-      const target = e.target as HTMLElement;
       if (target.tagName === 'TEXTAREA' || target.tagName === 'INPUT' || target.isContentEditable) {
         // Allow Ctrl/Cmd+A for select all and let the browser handle text selection
         if (cmdOrCtrl && e.key === 'a') {
