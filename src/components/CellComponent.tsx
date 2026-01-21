@@ -2205,6 +2205,9 @@ function TimelineCell({ cell, isSelected, onCellClick, onMouseDown, zoom, offset
 
   useEffect(() => {
     if (editingIndex !== null && editInputRef.current) {
+      // Set the initial HTML content
+      editInputRef.current.innerHTML = editingValue;
+
       editInputRef.current.focus();
       // Select all content in contentEditable div
       const range = document.createRange();
@@ -2213,7 +2216,7 @@ function TimelineCell({ cell, isSelected, onCellClick, onMouseDown, zoom, offset
       selection?.removeAllRanges();
       selection?.addRange(range);
     }
-  }, [editingIndex]);
+  }, [editingIndex]); // Only run when entering edit mode, not when editingValue changes
 
   // Close editing mode when cell is deselected
   useEffect(() => {
@@ -2272,48 +2275,52 @@ function TimelineCell({ cell, isSelected, onCellClick, onMouseDown, zoom, offset
       return;
     }
 
-    // Small delay to allow toolbar clicks to register
-    setTimeout(() => {
-      if (editingIndex !== null && editInputRef.current && !isClickingToolbarRef.current) {
-        const htmlContent = editInputRef.current.innerHTML;
-        const textContent = editInputRef.current.textContent || '';
+    // Save immediately to avoid race conditions with deselection
+    if (editingIndex !== null && editInputRef.current) {
+      const htmlContent = editInputRef.current.innerHTML;
+      const textContent = editInputRef.current.textContent || '';
 
-        const newCustomLabels = { ...(config.customLabels || {}) };
+      const newCustomLabels = { ...(config.customLabels || {}) };
 
-        // Check if there's any HTML formatting
-        const hasFormatting = htmlContent !== textContent && (
-          htmlContent.includes('<b>') ||
-          htmlContent.includes('<i>') ||
-          htmlContent.includes('<u>') ||
-          htmlContent.includes('style=') ||
-          htmlContent.includes('<span')
-        );
+      // Check if there's any HTML formatting
+      const hasFormatting = htmlContent !== textContent && (
+        htmlContent.includes('<b>') ||
+        htmlContent.includes('<i>') ||
+        htmlContent.includes('<u>') ||
+        htmlContent.includes('style=') ||
+        htmlContent.includes('<span')
+      );
 
-        // Remove if empty or (same as original number AND no formatting)
-        if (textContent.trim() === '' || (textContent === String(numbers[editingIndex]) && !hasFormatting)) {
-          delete newCustomLabels[editingIndex];
+      // Remove if empty or (same as original number AND no formatting)
+      if (textContent.trim() === '' || (textContent === String(numbers[editingIndex]) && !hasFormatting)) {
+        delete newCustomLabels[editingIndex];
+      } else {
+        if (hasFormatting) {
+          newCustomLabels[editingIndex] = {
+            text: textContent,
+            html: htmlContent
+          };
         } else {
-          if (hasFormatting) {
-            newCustomLabels[editingIndex] = {
-              text: textContent,
-              html: htmlContent
-            };
-          } else {
-            // Plain text, just store as string
-            newCustomLabels[editingIndex] = textContent;
-          }
+          // Plain text, just store as string
+          newCustomLabels[editingIndex] = textContent;
         }
-
-        updateCell(cell.id, {
-          timelineConfig: {
-            ...config,
-            customLabels: Object.keys(newCustomLabels).length > 0 ? newCustomLabels : undefined,
-          },
-        });
-        saveHistory();
-        setEditingIndex(null);
       }
-    }, 150);
+
+      updateCell(cell.id, {
+        timelineConfig: {
+          ...config,
+          customLabels: Object.keys(newCustomLabels).length > 0 ? newCustomLabels : undefined,
+        },
+      });
+      saveHistory();
+
+      // Small delay before closing to allow toolbar clicks to register
+      setTimeout(() => {
+        if (!isClickingToolbarRef.current) {
+          setEditingIndex(null);
+        }
+      }, 150);
+    }
   };
 
   const handleEditKeyDown = (e: React.KeyboardEvent) => {
@@ -2432,7 +2439,6 @@ function TimelineCell({ cell, isSelected, onCellClick, onMouseDown, zoom, offset
                     onKeyDown={handleEditKeyDown}
                     onClick={(e) => e.stopPropagation()}
                     onMouseDown={(e) => e.stopPropagation()}
-                    dangerouslySetInnerHTML={{ __html: editingValue }}
                     style={{
                       width: '90%',
                       minHeight: '60%',
